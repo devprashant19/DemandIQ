@@ -2,9 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Any
-import numpy as np
-import pandas as pd
 
 from demandiq.anomaly.detector import HybridAnomalyDetector
 from demandiq.config import settings
@@ -44,7 +41,11 @@ def run_pipeline(
     logger.info("Generating >40 temporal, lag, rolling, and interaction features...")
     df_feats = build_features(df_raw)
 
-    out_feats_p = Path(features_out_path) if features_out_path is not None else settings.processed_features_path
+    out_feats_p = (
+        Path(features_out_path)
+        if features_out_path is not None
+        else settings.processed_features_path
+    )
     out_feats_p.parent.mkdir(parents=True, exist_ok=True)
     if out_feats_p.suffix == ".parquet":
         try:
@@ -63,7 +64,9 @@ def run_pipeline(
     cv_metrics = evaluate_walk_forward(df_feats, n_splits=n_splits, export_report=True)
 
     # 4. Train complete ensemble model across entire dataset
-    logger.info("Fitting complete DemandForecaster ensemble across all available historical records...")
+    logger.info(
+        "Fitting complete DemandForecaster ensemble across all available historical records..."
+    )
     forecaster = DemandForecaster()
     forecaster.fit(df_feats)
     forecaster.save(path=forecaster_path)
@@ -81,11 +84,13 @@ def run_pipeline(
     return forecaster, detector, cv_metrics
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     """CLI handler for executing full DemandIQ production model training pipeline."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
     run_pipeline()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

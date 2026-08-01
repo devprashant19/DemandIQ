@@ -1,7 +1,7 @@
 """Feature engineering module for time-series demand forecasting without data leakage."""
 
 import logging
-from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -72,7 +72,9 @@ def compute_city_target_encoding(df: pd.DataFrame) -> dict[str, float]:
     return {str(city): float(val) for city, val in encoding_series.items()}
 
 
-def build_features(df: pd.DataFrame, target_encoding: dict[str, float] | None = None) -> pd.DataFrame:
+def build_features(
+    df: pd.DataFrame, target_encoding: dict[str, float] | None = None
+) -> pd.DataFrame:
     """Generate >40 features (temporal, lags, rolling stats, weather, interactions) without mutation or leakage.
 
     Args:
@@ -111,12 +113,18 @@ def build_features(df: pd.DataFrame, target_encoding: dict[str, float] | None = 
     # 3. Rolling window statistics on orders_lag_1 to ensure zero leakage (12 features)
     lag_1_grouped = out_df.groupby("city")["orders_lag_1"]
     for win in [7, 14, 28]:
-        out_df[f"rolling_mean_{win}"] = lag_1_grouped.transform(lambda x: x.rolling(win, min_periods=1).mean())
+        out_df[f"rolling_mean_{win}"] = lag_1_grouped.transform(
+            lambda x, w=win: x.rolling(w, min_periods=1).mean()
+        )
         out_df[f"rolling_std_{win}"] = lag_1_grouped.transform(
-            lambda x: x.rolling(win, min_periods=1).std()
+            lambda x, w=win: x.rolling(w, min_periods=1).std()
         ).fillna(0.0)
-        out_df[f"rolling_min_{win}"] = lag_1_grouped.transform(lambda x: x.rolling(win, min_periods=1).min())
-        out_df[f"rolling_max_{win}"] = lag_1_grouped.transform(lambda x: x.rolling(win, min_periods=1).max())
+        out_df[f"rolling_min_{win}"] = lag_1_grouped.transform(
+            lambda x, w=win: x.rolling(w, min_periods=1).min()
+        )
+        out_df[f"rolling_max_{win}"] = lag_1_grouped.transform(
+            lambda x, w=win: x.rolling(w, min_periods=1).max()
+        )
 
     # 4. Target encoding (1 feature)
     if target_encoding is None:
@@ -134,22 +142,23 @@ def build_features(df: pd.DataFrame, target_encoding: dict[str, float] | None = 
 
     if "rainfall_mm" in out_df.columns:
         out_df["log_rainfall"] = np.log1p(np.maximum(0.0, out_df["rainfall_mm"]))
-        is_rainy_val = out_df["is_rainy"] if "is_rainy" in out_df.columns else 0
-        out_df["rain_intensity"] = out_df["rainfall_mm"] * is_rainy_val
+        is_rainy_val = out_df["is_rainy"].to_numpy() if "is_rainy" in out_df.columns else 0
+        out_df["rain_intensity"] = out_df["rainfall_mm"].to_numpy() * is_rainy_val
     else:
         out_df["log_rainfall"] = 0.0
         out_df["rain_intensity"] = 0.0
 
     # 6. Interaction terms and ratios (6 features)
-    promo_val = out_df["promo_active"] if "promo_active" in out_df.columns else 0
-    holiday_val = out_df["is_holiday"] if "is_holiday" in out_df.columns else 0
-    festival_val = out_df["festival_flag"] if "festival_flag" in out_df.columns else 0
-    rain_val = out_df["is_rainy"] if "is_rainy" in out_df.columns else 0
+    promo_val = out_df["promo_active"].to_numpy() if "promo_active" in out_df.columns else 0
+    holiday_val = out_df["is_holiday"].to_numpy() if "is_holiday" in out_df.columns else 0
+    festival_val = out_df["festival_flag"].to_numpy() if "festival_flag" in out_df.columns else 0
+    rain_val = out_df["is_rainy"].to_numpy() if "is_rainy" in out_df.columns else 0
+    weekend_val = out_df["is_weekend"].to_numpy()
 
-    out_df["promo_x_weekend"] = (promo_val * out_df["is_weekend"]).astype(int)
+    out_df["promo_x_weekend"] = (promo_val * weekend_val).astype(int)
     out_df["promo_x_rainy"] = (promo_val * rain_val).astype(int)
     out_df["festival_x_rainy"] = (festival_val * rain_val).astype(int)
-    out_df["holiday_x_weekend"] = (holiday_val * out_df["is_weekend"]).astype(int)
+    out_df["holiday_x_weekend"] = (holiday_val * weekend_val).astype(int)
     out_df["promo_x_holiday"] = (promo_val * holiday_val).astype(int)
 
     # Ratios (safe division with epsilon)
@@ -160,5 +169,7 @@ def build_features(df: pd.DataFrame, target_encoding: dict[str, float] | None = 
     out_df = out_df.groupby("city", group_keys=False).apply(lambda g: g.bfill().ffill()).fillna(0.0)
     out_df = out_df.reset_index(drop=True)
 
-    logger.debug("Engineered %d total features cleanly without NaNs or leakage.", len(FEATURE_COLUMNS))
+    logger.debug(
+        "Engineered %d total features cleanly without NaNs or leakage.", len(FEATURE_COLUMNS)
+    )
     return out_df

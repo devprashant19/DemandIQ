@@ -1,18 +1,22 @@
 """SHAP explainability module wrapping TreeExplainer for feature importance attribution."""
 
 import logging
-from typing import Any, overload
+from typing import Any
+
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import shap
+
 from demandiq.features.engineer import FEATURE_COLUMNS, build_features
 from demandiq.models.forecaster import DemandForecaster
 
 logger = logging.getLogger(__name__)
 
 
-def get_shap_values(model: DemandForecaster | lgb.LGBMRegressor, X: pd.DataFrame, city: str | None = None) -> tuple[np.ndarray, float | np.ndarray]:
+def get_shap_values(
+    model: DemandForecaster | lgb.LGBMRegressor, X: pd.DataFrame, city: str | None = None
+) -> tuple[np.ndarray[Any, Any], float | np.ndarray[Any, Any]]:
     """Compute exact SHAP attribution values and expected baseline value for predictions.
 
     Args:
@@ -46,9 +50,9 @@ def get_shap_values(model: DemandForecaster | lgb.LGBMRegressor, X: pd.DataFrame
     feature_matrix = work_df[FEATURE_COLUMNS].to_numpy()
     explainer = shap.TreeExplainer(lgb_mod)
     shap_vals = explainer.shap_values(feature_matrix)
-    
+
     expected_val = explainer.expected_value
-    if isinstance(expected_val, (list, np.ndarray)) and len(expected_val) == 1:
+    if isinstance(expected_val, list | np.ndarray) and len(expected_val) == 1:
         expected_val = float(expected_val[0])
 
     return np.array(shap_vals), expected_val
@@ -56,7 +60,7 @@ def get_shap_values(model: DemandForecaster | lgb.LGBMRegressor, X: pd.DataFrame
 
 def get_top_drivers(
     model: DemandForecaster | lgb.LGBMRegressor,
-    X_row: pd.DataFrame | pd.Series,
+    X_row: pd.DataFrame | pd.Series[Any],
     n: int = 5,
     city: str | None = None,
 ) -> list[tuple[str, float]] | list[list[tuple[str, float]]]:
@@ -75,7 +79,7 @@ def get_top_drivers(
         df_batch = X_row.to_frame().T
         is_single_row = True
     else:
-        df_batch = X_row.copy()
+        df_batch = X_row.copy()  # type: ignore[assignment]
         is_single_row = len(df_batch) == 1
 
     shap_matrix, _ = get_shap_values(model, df_batch, city=city)
@@ -84,7 +88,9 @@ def get_top_drivers(
     for row_idx in range(len(df_batch)):
         row_shaps = shap_matrix[row_idx]
         # Pair feature names with SHAP values
-        feature_contributions = list(zip(FEATURE_COLUMNS, [float(val) for val in row_shaps]))
+        feature_contributions = list(
+            zip(FEATURE_COLUMNS, [float(val) for val in row_shaps], strict=False)
+        )
         # Sort descending by absolute contribution magnitude
         sorted_drivers = sorted(feature_contributions, key=lambda x: abs(x[1]), reverse=True)
         batch_drivers.append(sorted_drivers[:n])

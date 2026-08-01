@@ -1,6 +1,7 @@
 """Shared Pytest fixtures for unit and integration testing across DemandIQ."""
 
 from pathlib import Path
+
 import pandas as pd
 import pytest
 

@@ -2,17 +2,22 @@
 
 import logging
 import pickle
+import warnings
 from pathlib import Path
 from typing import Any
+
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
-from prophet import Prophet
 
 from demandiq.config import settings
 from demandiq.features.engineer import FEATURE_COLUMNS, build_features
 
 logger = logging.getLogger(__name__)
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from prophet import Prophet
 
 
 class DemandForecaster:
@@ -39,7 +44,9 @@ class DemandForecaster:
         self._feature_cols: list[str] = FEATURE_COLUMNS.copy()
         self.is_fitted: bool = False
 
-    def fit(self, X: pd.DataFrame, y: pd.Series | np.ndarray | None = None) -> "DemandForecaster":
+    def fit(
+        self, X: pd.DataFrame, y: pd.Series[Any] | np.ndarray[Any, Any] | None = None
+    ) -> "DemandForecaster":
         """Fit individual LightGBM and Prophet models per city without code duplication.
 
         Args:
@@ -65,11 +72,16 @@ class DemandForecaster:
         # Ensure feature engineering has been executed
         missing_features = [c for c in self._feature_cols if c not in train_df.columns]
         if missing_features:
-            logger.info("Missing %d engineered features during fit. Generating features...", len(missing_features))
+            logger.info(
+                "Missing %d engineered features during fit. Generating features...",
+                len(missing_features),
+            )
             train_df = build_features(train_df)
 
         cities = train_df["city"].unique()
-        logger.info("Fitting DemandForecaster ensemble across %d cities: %s", len(cities), list(cities))
+        logger.info(
+            "Fitting DemandForecaster ensemble across %d cities: %s", len(cities), list(cities)
+        )
 
         for city in [str(c) for c in cities]:
             city_df = train_df[train_df["city"] == city].sort_values("date").reset_index(drop=True)
@@ -109,7 +121,7 @@ class DemandForecaster:
         logger.info("Successfully completed ensemble training across all cities.")
         return self
 
-    def predict(self, X: pd.DataFrame) -> np.ndarray:
+    def predict(self, X: pd.DataFrame) -> np.ndarray[Any, Any]:
         """Predict daily order volumes for input dataset using weighted ensemble average.
 
         Args:
@@ -138,7 +150,10 @@ class DemandForecaster:
             indices = city_sub["orig_index"].to_numpy()
 
             if city not in self._lgb_models or city not in self._prophet_models:
-                logger.warning("City '%s' was not seen during training. Falling back to overall default model.", city)
+                logger.warning(
+                    "City '%s' was not seen during training. Falling back to overall default model.",
+                    city,
+                )
                 avail_cities = list(self._lgb_models.keys())
                 lgb_mod = self._lgb_models[avail_cities[0]]
                 prophet_mod = self._prophet_models[avail_cities[0]]
@@ -155,7 +170,7 @@ class DemandForecaster:
             for reg in ["is_holiday", "promo_active", "is_rainy"]:
                 if reg in city_sub.columns:
                     prophet_sub[reg] = city_sub[reg].to_numpy()
-            
+
             prophet_out = prophet_mod.predict(prophet_sub)
             prophet_preds = prophet_out["yhat"].to_numpy()
 

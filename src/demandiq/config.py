@@ -1,10 +1,9 @@
 """Configuration settings and path constants for DemandIQ."""
 
 from pathlib import Path
-from typing import Any
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 # Determine repository project root directory
 PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent

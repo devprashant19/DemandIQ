@@ -2,8 +2,10 @@
 
 import time
 from pathlib import Path
-import pandas as pd
+
 import pytest
+
+from demandiq.data.generate_eda import generate_eda_notebook
 from demandiq.data.generate_synthetic import generate_synthetic_data
 from demandiq.pipeline import run_pipeline
 
@@ -17,6 +19,7 @@ def test_end_to_end_pipeline_integration(tmp_path: Path) -> None:
     feats_file = tmp_path / "processed_features.csv"
     model_file = tmp_path / "ensemble.pkl"
     det_file = tmp_path / "detector.pkl"
+    nb_file = tmp_path / "01_eda.ipynb"
 
     # 1. Generate small synthetic dataset (~200 rows)
     df_raw, _ = generate_synthetic_data(n_days=100, seed=42, cities=["New York", "Chicago"])
@@ -32,6 +35,9 @@ def test_end_to_end_pipeline_integration(tmp_path: Path) -> None:
         n_splits=3,
     )
 
+    # 3. Test generating EDA notebook
+    generate_eda_notebook(output_path=nb_file)
+
     elapsed_time = time.time() - start_time
 
     # Assert models are fitted and artifacts successfully materialized on disk
@@ -40,10 +46,13 @@ def test_end_to_end_pipeline_integration(tmp_path: Path) -> None:
     assert feats_file.exists(), "Engineered features file was not created by pipeline."
     assert model_file.exists(), "Trained forecaster model artifact was not saved by pipeline."
     assert det_file.exists(), "Trained anomaly detector artifact was not saved by pipeline."
+    assert nb_file.exists(), "EDA notebook artifact was not created."
 
     # Assert walk-forward validation completed with valid metrics
     assert "mape_model" in cv_metrics
     assert cv_metrics["mape_model"] < cv_metrics["mape_baseline"]
 
     # Assert whole operation finishes within 60-second execution budget
-    assert elapsed_time < 60.0, f"Pipeline execution took {elapsed_time:.2f}s (exceeded 60s budget!)."
+    assert (
+        elapsed_time < 60.0
+    ), f"Pipeline execution took {elapsed_time:.2f}s (exceeded 60s budget!)."

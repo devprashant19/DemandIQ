@@ -3,7 +3,7 @@
 import logging
 import pickle
 from pathlib import Path
-from typing import Any
+
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
@@ -51,7 +51,7 @@ class HybridAnomalyDetector:
         self.res_std: float = 1.0
         self.is_fitted: bool = False
 
-    def fit(self, residuals: np.ndarray | list[float]) -> "HybridAnomalyDetector":
+    def fit(self, residuals: np.ndarray[Any, Any] | list[float]) -> "HybridAnomalyDetector":
         """Fit IsolationForest on residual distributions and establish mean/std baseline parameters.
 
         Args:
@@ -74,7 +74,7 @@ class HybridAnomalyDetector:
         )
         return self
 
-    def predict(self, residuals: np.ndarray | list[float]) -> np.ndarray:
+    def predict(self, residuals: np.ndarray[Any, Any] | list[float]) -> np.ndarray[Any, Any]:
         """Predict boolean anomaly status across input residual sequence.
 
         Args:
@@ -107,7 +107,7 @@ class HybridAnomalyDetector:
 
         return np.array(anomalies, dtype=bool)
 
-    def score(self, residuals: np.ndarray | list[float]) -> np.ndarray:
+    def score(self, residuals: np.ndarray[Any, Any] | list[float]) -> np.ndarray[Any, Any]:
         """Compute anomaly numeric severity scores combining normalized Z-scores and anomaly decision function.
 
         Args:
@@ -124,10 +124,10 @@ class HybridAnomalyDetector:
 
         res_arr = np.array(residuals, dtype=float).reshape(-1, 1)
         z_scores = np.abs((res_arr.flatten() - self.res_mean) / self.res_std)
-        
+
         # Negative decision function indicates stronger anomaly
         if_scores = -1.0 * self.iforest.decision_function(res_arr)
-        
+
         # Composite score weighting both statistical extremeness and isolation isolation depth
         composite_score = 0.6 * z_scores + 0.4 * np.maximum(0.0, if_scores * 10.0)
         return np.array(composite_score, dtype=float)

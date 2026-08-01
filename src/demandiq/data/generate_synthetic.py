@@ -1,10 +1,10 @@
 """Synthetic demand dataset generator for food-delivery business modeled across multiple cities."""
 
 import argparse
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+
 import numpy as np
 import pandas as pd
 
@@ -122,7 +122,9 @@ def generate_synthetic_data(
 
         final_orders = np.where(
             anomaly_mask,
-            np.where(is_spike, simulated_orders * spike_multiplier, simulated_orders * drop_multiplier),
+            np.where(
+                is_spike, simulated_orders * spike_multiplier, simulated_orders * drop_multiplier
+            ),
             simulated_orders,
         )
 
@@ -182,24 +184,37 @@ def save_synthetic_data(
     out_p = Path(out_path)
     out_p.parent.mkdir(parents=True, exist_ok=True)
     orders_df.to_csv(out_p, index=False)
-    logger.info("Successfully exported synthetic orders data (%d rows) to %s", len(orders_df), out_p)
+    logger.info(
+        "Successfully exported synthetic orders data (%d rows) to %s", len(orders_df), out_p
+    )
 
-    anom_p = Path(anomalies_out_path) if anomalies_out_path else settings.ground_truth_anomalies_path
+    anom_p = (
+        Path(anomalies_out_path) if anomalies_out_path else settings.ground_truth_anomalies_path
+    )
     anom_p.parent.mkdir(parents=True, exist_ok=True)
     ground_truth_df.to_csv(anom_p, index=False)
     logger.info("Successfully exported true anomaly labels to %s", anom_p)
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     """CLI execution handler for running synthetic dataset generation."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
     parser = argparse.ArgumentParser(description="Generate synthetic food-delivery orders data.")
-    parser.add_argument("--out", type=str, default=str(settings.raw_orders_path), help="Output path")
     parser.add_argument(
-        "--anomalies-out", type=str, default=str(settings.ground_truth_anomalies_path), help="Anomalies out"
+        "--out", type=str, default=str(settings.raw_orders_path), help="Output path"
+    )
+    parser.add_argument(
+        "--anomalies-out",
+        type=str,
+        default=str(settings.ground_truth_anomalies_path),
+        help="Anomalies out",
     )
     parser.add_argument("--years", type=int, default=3, help="Number of historical years")
-    parser.add_argument("--seed", type=int, default=settings.random_seed, help="Random reproducibility seed")
+    parser.add_argument(
+        "--seed", type=int, default=settings.random_seed, help="Random reproducibility seed"
+    )
 
     args = parser.parse_args()
     save_synthetic_data(
@@ -207,5 +222,5 @@ def main() -> None:
     )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

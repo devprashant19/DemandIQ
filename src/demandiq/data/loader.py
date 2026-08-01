@@ -1,9 +1,9 @@
 """Data loader and schema validator for raw order datasets."""
 
-from datetime import date
 import logging
+from datetime import date
 from pathlib import Path
-from typing import Any
+
 import pandas as pd
 import pandera as pa
 
@@ -41,9 +41,15 @@ def _get_orders_schema() -> pa.DataFrameSchema:
                 nullable=False,
             ),
             "temperature_c": pa.Column(pa.Float, nullable=False, coerce=True),
-            "rainfall_mm": pa.Column(pa.Float, checks=[pa.Check.ge(0.0)], nullable=False, coerce=True),
-            "is_rainy": pa.Column(pa.Int, checks=[pa.Check.isin([0, 1])], nullable=False, coerce=True),
-            "is_holiday": pa.Column(pa.Int, checks=[pa.Check.isin([0, 1])], nullable=False, coerce=True),
+            "rainfall_mm": pa.Column(
+                pa.Float, checks=[pa.Check.ge(0.0)], nullable=False, coerce=True
+            ),
+            "is_rainy": pa.Column(
+                pa.Int, checks=[pa.Check.isin([0, 1])], nullable=False, coerce=True
+            ),
+            "is_holiday": pa.Column(
+                pa.Int, checks=[pa.Check.isin([0, 1])], nullable=False, coerce=True
+            ),
             "festival_flag": pa.Column(
                 pa.Int, checks=[pa.Check.isin([0, 1])], nullable=False, coerce=True
             ),

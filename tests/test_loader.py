@@ -1,8 +1,11 @@
 """Unit tests for schema validator and file loader."""
 
 from datetime import datetime, timedelta
+from pathlib import Path
+
 import pandas as pd
 import pytest
+
 from demandiq.data.loader import DataValidationError, load_and_validate_orders, validate_orders_df
 
 
@@ -31,7 +34,6 @@ def test_loader_rejects_missing_column(sample_orders_df: pd.DataFrame) -> None:
 def test_loader_rejects_wrong_dtype(sample_orders_df: pd.DataFrame) -> None:
     """Assert DataValidationError is raised when invalid non-coercible string types appear in numerical columns."""
     bad_df = sample_orders_df.copy()
-    # Using object dtype column injection
     bad_df["orders"] = bad_df["orders"].astype(str)
     bad_df.loc[0, "orders"] = "invalid_number_string"
     with pytest.raises(DataValidationError):
@@ -53,11 +55,11 @@ def test_load_and_validate_orders_file_not_found() -> None:
         load_and_validate_orders("non_existent_fake_path.csv")
 
 
-def test_load_and_validate_orders_success(sample_orders_df: pd.DataFrame, tmp_path: pd.Timestamp | Any) -> None:
+def test_load_and_validate_orders_success(sample_orders_df: pd.DataFrame, tmp_path: Path) -> None:
     """Verify successful CSV parsing and validation from disk path."""
     csv_path = tmp_path / "orders.csv"
     sample_orders_df.to_csv(csv_path, index=False)
-    
+
     loaded = load_and_validate_orders(csv_path)
     assert len(loaded) == len(sample_orders_df)
     assert pd.api.types.is_datetime64_any_dtype(loaded["date"])

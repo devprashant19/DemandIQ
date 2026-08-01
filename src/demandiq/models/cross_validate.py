@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 from typing import Any
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -15,7 +16,7 @@ from demandiq.models.forecaster import DemandForecaster
 logger = logging.getLogger(__name__)
 
 
-def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
+def compute_metrics(y_true: np.ndarray[Any, Any], y_pred: np.ndarray[Any, Any]) -> dict[str, float]:
     """Calculate MAPE, RMSE, and MAE error metrics for prediction arrays.
 
     Args:
@@ -66,7 +67,9 @@ def evaluate_walk_forward(
     # Sort strictly chronologically across dates
     unique_dates = np.sort(work_df["date"].unique())
     if len(unique_dates) < n_splits + 2:
-        raise ValueError(f"Insufficient distinct calendar dates ({len(unique_dates)}) for {n_splits} folds.")
+        raise ValueError(
+            f"Insufficient distinct calendar dates ({len(unique_dates)}) for {n_splits} folds."
+        )
 
     tscv = TimeSeriesSplit(n_splits=n_splits)
     fold_metrics = []
@@ -141,12 +144,14 @@ def evaluate_walk_forward(
     )
 
     # Assert that ensemble MAPE beats the naive seasonal lag-7 baseline
-    assert avg_mape_model < avg_mape_base, (
-        f"Model MAPE ({avg_mape_model:.2f}%) failed to outperform naive baseline MAPE ({avg_mape_base:.2f}%)!"
-    )
+    assert (
+        avg_mape_model < avg_mape_base
+    ), f"Model MAPE ({avg_mape_model:.2f}%) failed to outperform naive baseline MAPE ({avg_mape_base:.2f}%)!"
 
     if export_report:
-        generate_backtest_report(metrics_df, fold_predictions_df, report_csv=report_csv, plot_png=plot_png)
+        generate_backtest_report(
+            metrics_df, fold_predictions_df, report_csv=report_csv, plot_png=plot_png
+        )
 
     return summary_results
 
@@ -180,7 +185,13 @@ def generate_backtest_report(
     sample_city = predictions_df["city"].iloc[0]
     city_preds = predictions_df[predictions_df["city"] == sample_city].sort_values("date")
 
-    plt.plot(city_preds["date"], city_preds["orders"], label="Actual Orders", color="#264653", linewidth=2.0)
+    plt.plot(
+        city_preds["date"],
+        city_preds["orders"],
+        label="Actual Orders",
+        color="#264653",
+        linewidth=2.0,
+    )
     plt.plot(
         city_preds["date"],
         city_preds["pred_model"],
@@ -198,7 +209,9 @@ def generate_backtest_report(
         alpha=0.7,
     )
 
-    plt.title(f"Walk-Forward Cross Validation Forecasts ({sample_city})", fontsize=14, fontweight="bold")
+    plt.title(
+        f"Walk-Forward Cross Validation Forecasts ({sample_city})", fontsize=14, fontweight="bold"
+    )
     plt.xlabel("Date", fontsize=12)
     plt.ylabel("Order Volume", fontsize=12)
     plt.legend(loc="upper left", framealpha=0.9)

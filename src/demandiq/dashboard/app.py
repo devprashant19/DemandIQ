@@ -1,9 +1,7 @@
 """Interactive Streamlit dashboard app for demand forecasting and anomaly diagnostics."""
 
 import logging
-from datetime import datetime
-from pathlib import Path
-import numpy as np
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -111,10 +109,10 @@ def load_production_artifacts() -> tuple[DemandForecaster, HybridAnomalyDetector
     """
     if not settings.forecaster_model_path.exists() or not settings.anomaly_detector_path.exists():
         raise FileNotFoundError("Model artifacts absent on local storage.")
-    
+
     forecaster = DemandForecaster.load(settings.forecaster_model_path)
     detector = HybridAnomalyDetector.load(settings.anomaly_detector_path)
-    
+
     if settings.processed_features_path.exists():
         if settings.processed_features_path.suffix == ".parquet":
             try:
@@ -132,11 +130,13 @@ def load_production_artifacts() -> tuple[DemandForecaster, HybridAnomalyDetector
     return forecaster, detector, df
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     """Render interactive Streamlit application components and visual plots."""
     apply_custom_theme()
 
-    st.markdown('<div class="gradient-title">⚡ DemandIQ Analytics Platform</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="gradient-title">⚡ DemandIQ Analytics Platform</div>', unsafe_allow_html=True
+    )
     st.markdown(
         '<div class="sub-title">Real-Time LightGBM + Prophet Ensemble Forecasting & Hybrid Anomaly Diagnostics</div>',
         unsafe_allow_html=True,
@@ -157,7 +157,7 @@ def main() -> None:
     # --- Sidebar Filtering Controls ---
     st.sidebar.title("🎛️ Dashboard Controls")
     st.sidebar.markdown("Filter demand metrics by metropolitan region and timeline intervals.")
-    
+
     cities = sorted(df["city"].unique().tolist())
     selected_city = str(st.sidebar.selectbox("Select City Location", options=cities, index=0))
 
@@ -259,7 +259,12 @@ def main() -> None:
                 y=anom_rows["orders"],
                 mode="markers",
                 name="Flagged Anomaly (Isolation Forest + Z-Score)",
-                marker=dict(color="#F43F5E", size=12, symbol="diamond-open", line=dict(width=2, color="#F43F5E")),
+                marker=dict(
+                    color="#F43F5E",
+                    size=12,
+                    symbol="diamond-open",
+                    line=dict(width=2, color="#F43F5E"),
+                ),
                 hovertemplate="<b>ANOMALY TRIGGERED</b><br>Date: %{x|%Y-%m-%d}<br>Orders: %{y:,}<extra></extra>",
             )
         )
@@ -285,13 +290,17 @@ def main() -> None:
     )
 
     date_options = sub_df["date"].dt.strftime("%Y-%m-%d").tolist()
-    selected_date_str = str(st.selectbox("Choose Specific Observation Date", options=date_options, index=len(date_options) - 1))
-    
+    selected_date_str = str(
+        st.selectbox(
+            "Choose Specific Observation Date", options=date_options, index=len(date_options) - 1
+        )
+    )
+
     target_row = sub_df[sub_df["date"] == pd.to_datetime(selected_date_str)].iloc[0]
-    
+
     with st.spinner("Extracting SHAP attribution tree contributions..."):
         drivers = get_top_drivers(forecaster, target_row, n=8, city=selected_city)
-    
+
     if isinstance(drivers, list) and all(isinstance(i, tuple) for i in drivers):
         d_names = [pair[0] for pair in drivers]
         d_vals = [pair[1] for pair in drivers]
@@ -311,16 +320,22 @@ def main() -> None:
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(15, 23, 42, 0.5)",
             font=dict(color="#E2E8F0"),
-            xaxis=dict(title="SHAP Order Attribution Magnitude (vs. City Baseline)", showgrid=True, gridcolor="rgba(255,255,255,0.05)"),
+            xaxis=dict(
+                title="SHAP Order Attribution Magnitude (vs. City Baseline)",
+                showgrid=True,
+                gridcolor="rgba(255,255,255,0.05)",
+            ),
             yaxis=dict(autorange="reversed"),
             height=350,
             margin=dict(l=20, r=20, t=20, b=20),
         )
         st.plotly_chart(shap_fig, use_container_width=True)
-    
+
     st.markdown("---")
-    st.caption("⚡ Built for high-throughput reliability by the DemandIQ ML Engineering Team. Portfolio-grade AI software.")
+    st.caption(
+        "⚡ Built for high-throughput reliability by the DemandIQ ML Engineering Team. Portfolio-grade AI software."
+    )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
