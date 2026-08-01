@@ -142,8 +142,9 @@ def build_features(
 
     if "rainfall_mm" in out_df.columns:
         out_df["log_rainfall"] = np.log1p(np.maximum(0.0, out_df["rainfall_mm"]))
+        zeros_float = np.zeros(len(out_df), dtype=float)
         is_rainy_val = (
-            out_df["is_rainy"].to_numpy(dtype=float) if "is_rainy" in out_df.columns else 0.0
+            out_df["is_rainy"].to_numpy(dtype=float) if "is_rainy" in out_df.columns else zeros_float
         )
         out_df["rain_intensity"] = out_df["rainfall_mm"].to_numpy(dtype=float) * is_rainy_val
     else:
@@ -151,14 +152,15 @@ def build_features(
         out_df["rain_intensity"] = 0.0
 
     # 6. Interaction terms and ratios (6 features)
+    zeros_int = np.zeros(len(out_df), dtype=int)
     promo_val = (
-        out_df["promo_active"].to_numpy(dtype=int) if "promo_active" in out_df.columns else 0
+        out_df["promo_active"].to_numpy(dtype=int) if "promo_active" in out_df.columns else zeros_int
     )
-    holiday_val = out_df["is_holiday"].to_numpy(dtype=int) if "is_holiday" in out_df.columns else 0
+    holiday_val = out_df["is_holiday"].to_numpy(dtype=int) if "is_holiday" in out_df.columns else zeros_int
     festival_val = (
-        out_df["festival_flag"].to_numpy(dtype=int) if "festival_flag" in out_df.columns else 0
+        out_df["festival_flag"].to_numpy(dtype=int) if "festival_flag" in out_df.columns else zeros_int
     )
-    rain_val = out_df["is_rainy"].to_numpy(dtype=int) if "is_rainy" in out_df.columns else 0
+    rain_val = out_df["is_rainy"].to_numpy(dtype=int) if "is_rainy" in out_df.columns else zeros_int
     weekend_val = out_df["is_weekend"].to_numpy(dtype=int)
 
     out_df["promo_x_weekend"] = (promo_val * weekend_val).astype(int)

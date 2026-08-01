@@ -48,7 +48,7 @@ ignore = [
 convention = "google"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 files = ["src/"]
 ignore_missing_imports = true
@@ -64,3 +64,6 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
+
+[tool.coverage.run]
+omit = ["src/demandiq/dashboard/*", "src/demandiq/data/generate_eda.py"]
