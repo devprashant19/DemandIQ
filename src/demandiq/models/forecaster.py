@@ -1,5 +1,7 @@
 """LightGBM and Prophet hybrid ensemble forecasting engine."""
 
+from __future__ import annotations
+
 import logging
 import pickle
 import warnings
@@ -46,7 +48,7 @@ class DemandForecaster:
 
     def fit(
         self, X: pd.DataFrame, y: pd.Series[Any] | np.ndarray[Any, Any] | None = None
-    ) -> "DemandForecaster":
+    ) -> DemandForecaster:
         """Fit individual LightGBM and Prophet models per city without code duplication.
 
         Args:
@@ -196,7 +198,7 @@ class DemandForecaster:
         logger.info("Saved trained DemandForecaster artifact to %s", save_p)
 
     @classmethod
-    def load(cls, path: Path | str | None = None) -> "DemandForecaster":
+    def load(cls, path: Path | str | None = None) -> DemandForecaster:
         """Load serialized DemandForecaster ensemble model from disk.
 
         Args:

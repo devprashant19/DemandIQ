@@ -1,8 +1,11 @@
 """Hybrid anomaly detector combining IsolationForest and statistical Z-score/IQR rules."""
 
+from __future__ import annotations
+
 import logging
 import pickle
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from sklearn.ensemble import IsolationForest
@@ -51,7 +54,7 @@ class HybridAnomalyDetector:
         self.res_std: float = 1.0
         self.is_fitted: bool = False
 
-    def fit(self, residuals: np.ndarray[Any, Any] | list[float]) -> "HybridAnomalyDetector":
+    def fit(self, residuals: np.ndarray[Any, Any] | list[float]) -> HybridAnomalyDetector:
         """Fit IsolationForest on residual distributions and establish mean/std baseline parameters.
 
         Args:
@@ -145,7 +148,7 @@ class HybridAnomalyDetector:
         logger.info("Saved trained HybridAnomalyDetector artifact to %s", save_p)
 
     @classmethod
-    def load(cls, path: Path | str | None = None) -> "HybridAnomalyDetector":
+    def load(cls, path: Path | str | None = None) -> HybridAnomalyDetector:
         """Load trained anomaly detector from filesystem artifact.
 
         Args:

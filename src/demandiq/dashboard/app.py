@@ -1,3 +1,4 @@
+# ruff: noqa: C408
 """Interactive Streamlit dashboard app for demand forecasting and anomaly diagnostics."""
 
 import logging

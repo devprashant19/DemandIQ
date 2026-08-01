@@ -1,5 +1,7 @@
 """Walk-forward time-series cross-validation evaluation engine."""
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Any
