@@ -1,0 +1,14 @@
+pandas==2.2.1
+numpy==1.26.4
+lightgbm==4.3.0
+prophet==1.1.5
+cmdstanpy==1.2.2
+scikit-learn==1.4.2
+shap==0.45.0
+streamlit==1.32.2
+plotly==5.20.0
+pydantic==2.6.4
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+pandera==0.19.2
+pyarrow==15.0.2

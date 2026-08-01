@@ -1,0 +1,202 @@
+"""LightGBM and Prophet hybrid ensemble forecasting engine."""
+
+import logging
+import pickle
+from pathlib import Path
+from typing import Any
+import lightgbm as lgb
+import numpy as np
+import pandas as pd
+from prophet import Prophet
+
+from demandiq.config import settings
+from demandiq.features.engineer import FEATURE_COLUMNS, build_features
+
+logger = logging.getLogger(__name__)
+
+
+class DemandForecaster:
+    """Ensemble demand forecaster combining LightGBM and Prophet per city."""
+
+    def __init__(
+        self,
+        lgb_weight: float = settings.lgb_weight,
+        prophet_weight: float = settings.prophet_weight,
+        random_seed: int = settings.random_seed,
+    ) -> None:
+        """Initialize ensemble demand forecaster with weights and seed.
+
+        Args:
+            lgb_weight (float): Relative weighting assigned to LightGBM predictions.
+            prophet_weight (float): Relative weighting assigned to Prophet predictions.
+            random_seed (int): Reproducibility random seed for tree estimations.
+        """
+        self.lgb_weight = lgb_weight
+        self.prophet_weight = prophet_weight
+        self.random_seed = random_seed
+        self._lgb_models: dict[str, lgb.LGBMRegressor] = {}
+        self._prophet_models: dict[str, Prophet] = {}
+        self._feature_cols: list[str] = FEATURE_COLUMNS.copy()
+        self.is_fitted: bool = False
+
+    def fit(self, X: pd.DataFrame, y: pd.Series | np.ndarray | None = None) -> "DemandForecaster":
+        """Fit individual LightGBM and Prophet models per city without code duplication.
+
+        Args:
+            X (pd.DataFrame): Training dataframe containing date, city, target orders, and features.
+            y (pd.Series | np.ndarray | None): Optional explicit target orders series. If None,
+                extracts 'orders' column from X.
+
+        Returns:
+            DemandForecaster: Fitted instance of self.
+
+        Raises:
+            ValueError: If required columns or targets are missing from training dataset.
+        """
+        train_df = X.copy()
+        if "date" not in train_df.columns or "city" not in train_df.columns:
+            raise ValueError("Training DataFrame must contain 'date' and 'city' columns.")
+
+        if y is not None:
+            train_df["orders"] = np.array(y)
+        elif "orders" not in train_df.columns:
+            raise ValueError("Target column 'orders' must be present in X if y is None.")
+
+        # Ensure feature engineering has been executed
+        missing_features = [c for c in self._feature_cols if c not in train_df.columns]
+        if missing_features:
+            logger.info("Missing %d engineered features during fit. Generating features...", len(missing_features))
+            train_df = build_features(train_df)
+
+        cities = train_df["city"].unique()
+        logger.info("Fitting DemandForecaster ensemble across %d cities: %s", len(cities), list(cities))
+
+        for city in [str(c) for c in cities]:
+            city_df = train_df[train_df["city"] == city].sort_values("date").reset_index(drop=True)
+            city_y = city_df["orders"].to_numpy()
+            city_X = city_df[self._feature_cols].to_numpy()
+
+            # 1. Fit LightGBM Regressor
+            lgb_model = lgb.LGBMRegressor(
+                n_estimators=100,
+                learning_rate=0.05,
+                random_state=self.random_seed,
+                verbose=-1,
+                n_jobs=1,
+            )
+            lgb_model.fit(city_X, city_y)
+            self._lgb_models[city] = lgb_model
+
+            # 2. Fit Prophet Model (fully offline, cmdstanpy backend)
+            prophet_df = pd.DataFrame({"ds": pd.to_datetime(city_df["date"]), "y": city_y})
+            # Include custom offline regressors if available
+            regressors = ["is_holiday", "promo_active", "is_rainy"]
+            prophet_model = Prophet(
+                weekly_seasonality=True,
+                yearly_seasonality=True,
+                daily_seasonality=False,
+            )
+            for reg in regressors:
+                if reg in city_df.columns:
+                    prophet_model.add_regressor(reg)
+                    prophet_df[reg] = city_df[reg].to_numpy()
+
+            # Suppress chatty fitting output
+            prophet_model.fit(prophet_df)
+            self._prophet_models[city] = prophet_model
+
+        self.is_fitted = True
+        logger.info("Successfully completed ensemble training across all cities.")
+        return self
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        """Predict daily order volumes for input dataset using weighted ensemble average.
+
+        Args:
+            X (pd.DataFrame): Input dataframe containing date, city, and required feature columns.
+
+        Returns:
+            np.ndarray: One-dimensional array of predicted non-negative order volumes.
+
+        Raises:
+            RuntimeError: If forecaster has not been fitted prior to invoking predict.
+        """
+        if not self.is_fitted:
+            raise RuntimeError("DemandForecaster must be fitted or loaded before calling predict.")
+
+        pred_df = X.copy()
+        missing_features = [c for c in self._feature_cols if c not in pred_df.columns]
+        if missing_features:
+            pred_df = build_features(pred_df)
+
+        pred_df["orig_index"] = np.arange(len(pred_df))
+        predictions = np.zeros(len(pred_df), dtype=float)
+
+        for city in pred_df["city"].unique():
+            city_mask = pred_df["city"] == city
+            city_sub = pred_df[city_mask].copy()
+            indices = city_sub["orig_index"].to_numpy()
+
+            if city not in self._lgb_models or city not in self._prophet_models:
+                logger.warning("City '%s' was not seen during training. Falling back to overall default model.", city)
+                avail_cities = list(self._lgb_models.keys())
+                lgb_mod = self._lgb_models[avail_cities[0]]
+                prophet_mod = self._prophet_models[avail_cities[0]]
+            else:
+                lgb_mod = self._lgb_models[str(city)]
+                prophet_mod = self._prophet_models[str(city)]
+
+            # LightGBM inference
+            city_X = city_sub[self._feature_cols].to_numpy()
+            lgb_preds = lgb_mod.predict(city_X)
+
+            # Prophet inference
+            prophet_sub = pd.DataFrame({"ds": pd.to_datetime(city_sub["date"])})
+            for reg in ["is_holiday", "promo_active", "is_rainy"]:
+                if reg in city_sub.columns:
+                    prophet_sub[reg] = city_sub[reg].to_numpy()
+            
+            prophet_out = prophet_mod.predict(prophet_sub)
+            prophet_preds = prophet_out["yhat"].to_numpy()
+
+            # Weighted combination
+            combined = self.lgb_weight * lgb_preds + self.prophet_weight * prophet_preds
+            predictions[indices] = combined
+
+        # Ensure finite and strictly non-negative outputs
+        safe_preds = np.nan_to_num(predictions, nan=0.0, posinf=0.0, neginf=0.0)
+        final_preds = np.maximum(0.0, safe_preds)
+        return final_preds
+
+    def save(self, path: Path | str | None = None) -> None:
+        """Serialize and save trained ensemble models to filesystem.
+
+        Args:
+            path (Path | str | None): Destination model path. Defaults to settings path.
+        """
+        save_p = Path(path) if path is not None else settings.forecaster_model_path
+        save_p.parent.mkdir(parents=True, exist_ok=True)
+        with open(save_p, "wb") as f:
+            pickle.dump(self, f)
+        logger.info("Saved trained DemandForecaster artifact to %s", save_p)
+
+    @classmethod
+    def load(cls, path: Path | str | None = None) -> "DemandForecaster":
+        """Load serialized DemandForecaster ensemble model from disk.
+
+        Args:
+            path (Path | str | None): Path to model file. Defaults to settings path.
+
+        Returns:
+            DemandForecaster: Loaded and executable forecaster instance.
+
+        Raises:
+            FileNotFoundError: If target model file path does not exist.
+        """
+        load_p = Path(path) if path is not None else settings.forecaster_model_path
+        if not load_p.exists():
+            raise FileNotFoundError(f"No trained forecaster model found at: {load_p}")
+        with open(load_p, "rb") as f:
+            model = pickle.load(f)
+        logger.info("Successfully loaded DemandForecaster from %s", load_p)
+        return model

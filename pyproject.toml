@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "demandiq"
+version = "0.1.0"
+description = "Demand forecasting and anomaly detection engine for a food-delivery-style business."
+readme = "README.md"
+authors = [
+    { name = "ML Engineering & DevOps Team", email = "devops@demandiq.internal" }
+]
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+    "D",  # pydocstyle (docstrings)
+]
+ignore = [
+    "D100", # Missing docstring in public module
+    "D104", # Missing docstring in public package
+    "D203", # 1 blank line required before class docstring (incompatible with D211)
+    "D213", # Multi-line docstring summary should start at the second line (incompatible with D212)
+    "E501", # Line length enforced by black/formatter
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/"]
+ignore_missing_imports = true
+warn_return_any = false
+disallow_untyped_decorators = false
+explicit_package_bases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "--strict-markers -v"
+markers = [
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
