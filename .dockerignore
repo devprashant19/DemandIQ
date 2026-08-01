@@ -1,0 +1,31 @@
+# Git and environments
+.git/
+.gitignore
+.venv/
+venv/
+env/
+
+# Build caches and Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.paged
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+coverage.xml
+build/
+dist/
+*.egg-info/
+
+# Tests and exploratory docs
+tests/
+notebooks/
+*.md
+Makefile
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
