@@ -135,6 +135,33 @@ class HybridAnomalyDetector:
         composite_score = 0.6 * z_scores + 0.4 * np.maximum(0.0, if_scores * 10.0)
         return np.array(composite_score, dtype=float)
 
+    def classify(self, residuals: np.ndarray[Any, Any] | list[float]) -> np.ndarray[Any, Any]:
+        """Classify residual anomalies into categorical labels ('surge', 'dip', or 'normal').
+
+        Args:
+            residuals (np.ndarray | list[float]): Input error series (actual - predicted).
+
+        Returns:
+            np.ndarray: One-dimensional array of strings indicating 'surge', 'dip', or 'normal'.
+
+        Raises:
+            RuntimeError: If detector has not been fitted prior to invoking classify.
+        """
+        if not self.is_fitted:
+            raise RuntimeError("HybridAnomalyDetector must be fitted or loaded prior to classify.")
+
+        res_arr = np.array(residuals, dtype=float).flatten()
+        anomalies = self.predict(res_arr)
+
+        classes = np.full(len(res_arr), "normal", dtype="<U6")
+        surge_mask = np.logical_and(anomalies, res_arr >= 0.0)
+        dip_mask = np.logical_and(anomalies, res_arr < 0.0)
+
+        classes[surge_mask] = "surge"
+        classes[dip_mask] = "dip"
+
+        return classes
+
     def save(self, path: Path | str | None = None) -> None:
         """Serialize trained anomaly detector to disk.
 

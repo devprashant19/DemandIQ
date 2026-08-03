@@ -57,3 +57,20 @@ def test_detector_save_load(temp_models_dir: Path) -> None:
     assert loaded.is_fitted
     assert loaded.res_mean == det.res_mean
     assert loaded.res_std == det.res_std
+
+
+def test_detector_classify() -> None:
+    """Verify classify distinguishes properly between normal, surge, and dip residuals."""
+    rng = np.random.default_rng(999)
+    normal_res = rng.normal(0, 10, 200)
+
+    detector = HybridAnomalyDetector(z_threshold=2.5, strict_mode=False)
+    detector.fit(normal_res)
+
+    test_res = np.array([5.0, 500.0, -450.0, -2.0])
+    classes = detector.classify(test_res)
+
+    assert classes[0] == "normal"
+    assert classes[1] == "surge"
+    assert classes[2] == "dip"
+    assert classes[3] == "normal"
