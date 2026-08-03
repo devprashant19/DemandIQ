@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     min_cv_folds: int = Field(
         default=5, description="Number of TimeSeriesSplit walk-forward validation folds"
     )
+    quantile_alphas: list[float] = Field(
+        default=[0.1, 0.5, 0.9], description="Quantile alphas for uncertainty prediction intervals"
+    )
     anomaly_contamination: float = Field(
         default=0.015, description="Expected proportion of anomalies in IsolationForest"
     )

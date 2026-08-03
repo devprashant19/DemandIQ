@@ -56,3 +56,19 @@ def test_forecaster_unfitted_predict_raises(fe_orders_df: pd.DataFrame) -> None:
     unfitted = DemandForecaster()
     with pytest.raises(RuntimeError, match="must be fitted or loaded before calling predict"):
         unfitted.predict(fe_orders_df)
+
+
+def test_forecaster_predict_intervals(fe_orders_df: pd.DataFrame) -> None:
+    """Verify predict_intervals outputs mean, p10, p50, p90 arrays with expected inequality bounds."""
+    model = DemandForecaster(random_seed=42)
+    model.fit(fe_orders_df)
+
+    intervals = model.predict_intervals(fe_orders_df)
+    assert "mean" in intervals
+    assert "p10" in intervals
+    assert "p50" in intervals
+    assert "p90" in intervals
+
+    assert len(intervals["p10"]) == len(fe_orders_df)
+    assert np.all(intervals["p10"] <= intervals["mean"] + 1e-6), "p10 should be less than or equal to mean"
+    assert np.all(intervals["p90"] >= intervals["mean"] - 1e-6), "p90 should be greater than or equal to mean"

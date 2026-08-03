@@ -29,6 +29,7 @@ class DemandForecaster:
         self,
         lgb_weight: float = settings.lgb_weight,
         prophet_weight: float = settings.prophet_weight,
+        quantile_alphas: list[float] | None = None,
         random_seed: int = settings.random_seed,
     ) -> None:
         """Initialize ensemble demand forecaster with weights and seed.
@@ -36,12 +37,15 @@ class DemandForecaster:
         Args:
             lgb_weight (float): Relative weighting assigned to LightGBM predictions.
             prophet_weight (float): Relative weighting assigned to Prophet predictions.
+            quantile_alphas (list[float] | None): Target quantiles for uncertainty intervals.
             random_seed (int): Reproducibility random seed for tree estimations.
         """
         self.lgb_weight = lgb_weight
         self.prophet_weight = prophet_weight
+        self.quantile_alphas = quantile_alphas if quantile_alphas is not None else settings.quantile_alphas
         self.random_seed = random_seed
         self._lgb_models: dict[str, lgb.LGBMRegressor] = {}
+        self._lgb_quantile_models: dict[str, dict[float, lgb.LGBMRegressor]] = {}
         self._prophet_models: dict[str, Prophet] = {}
         self._feature_cols: list[str] = FEATURE_COLUMNS.copy()
         self.is_fitted: bool = False
@@ -100,6 +104,21 @@ class DemandForecaster:
             )
             lgb_model.fit(city_X, city_y)
             self._lgb_models[city] = lgb_model
+
+            # 1b. Fit Quantile LightGBM Regressors for prediction intervals
+            self._lgb_quantile_models[city] = {}
+            for alpha in self.quantile_alphas:
+                q_model = lgb.LGBMRegressor(
+                    objective="quantile",
+                    alpha=alpha,
+                    n_estimators=100,
+                    learning_rate=0.05,
+                    random_state=self.random_seed,
+                    verbose=-1,
+                    n_jobs=1,
+                )
+                q_model.fit(city_X, city_y)
+                self._lgb_quantile_models[city][alpha] = q_model
 
             # 2. Fit Prophet Model (fully offline, cmdstanpy backend)
             prophet_df = pd.DataFrame({"ds": pd.to_datetime(city_df["date"]), "y": city_y})
@@ -184,6 +203,90 @@ class DemandForecaster:
         safe_preds = np.nan_to_num(predictions, nan=0.0, posinf=0.0, neginf=0.0)
         final_preds = np.maximum(0.0, safe_preds)
         return final_preds
+
+    def predict_intervals(self, X: pd.DataFrame) -> dict[str, np.ndarray[Any, Any]]:
+        """Predict expected demand point forecasts along with lower and upper confidence intervals.
+
+        Args:
+            X (pd.DataFrame): Input dataframe containing date, city, and required feature columns.
+
+        Returns:
+            dict[str, np.ndarray]: Dictionary with keys 'mean', 'p10', 'p50', and 'p90' containing prediction arrays.
+
+        Raises:
+            RuntimeError: If forecaster has not been fitted prior to invoking predict_intervals.
+        """
+        if not self.is_fitted:
+            raise RuntimeError(
+                "DemandForecaster must be fitted or loaded before calling predict_intervals."
+            )
+
+        pred_df = X.copy()
+        missing_features = [c for c in self._feature_cols if c not in pred_df.columns]
+        if missing_features:
+            pred_df = build_features(pred_df)
+
+        pred_df["orig_index"] = np.arange(len(pred_df))
+        n_rows = len(pred_df)
+        res_mean = np.zeros(n_rows, dtype=float)
+        res_p10 = np.zeros(n_rows, dtype=float)
+        res_p50 = np.zeros(n_rows, dtype=float)
+        res_p90 = np.zeros(n_rows, dtype=float)
+
+        for city in pred_df["city"].unique():
+            city_mask = pred_df["city"] == city
+            city_sub = pred_df[city_mask].copy()
+            indices = city_sub["orig_index"].to_numpy()
+
+            if city not in self._lgb_models or city not in self._prophet_models:
+                avail_cities = list(self._lgb_models.keys())
+                lgb_mod = self._lgb_models[avail_cities[0]]
+                q_mods = getattr(self, "_lgb_quantile_models", {}).get(avail_cities[0], {})
+                prophet_mod = self._prophet_models[avail_cities[0]]
+            else:
+                lgb_mod = self._lgb_models[str(city)]
+                q_mods = getattr(self, "_lgb_quantile_models", {}).get(str(city), {})
+                prophet_mod = self._prophet_models[str(city)]
+
+            city_X = city_sub[self._feature_cols].to_numpy()
+            lgb_preds = lgb_mod.predict(city_X)
+
+            lgb_p10 = q_mods[0.1].predict(city_X) if 0.1 in q_mods else lgb_preds
+            lgb_p50 = q_mods[0.5].predict(city_X) if 0.5 in q_mods else lgb_preds
+            lgb_p90 = q_mods[0.9].predict(city_X) if 0.9 in q_mods else lgb_preds
+
+            # Prophet inference
+            prophet_sub = pd.DataFrame({"ds": pd.to_datetime(city_sub["date"])})
+            for reg in ["is_holiday", "promo_active", "is_rainy"]:
+                if reg in city_sub.columns:
+                    prophet_sub[reg] = city_sub[reg].to_numpy()
+
+            prophet_out = prophet_mod.predict(prophet_sub)
+            p_mean = prophet_out["yhat"].to_numpy()
+            p_lower = prophet_out.get("yhat_lower", prophet_out["yhat"]).to_numpy()
+            p_upper = prophet_out.get("yhat_upper", prophet_out["yhat"]).to_numpy()
+
+            # Blend LightGBM quantiles with Prophet confidence bounds
+            comb_mean = self.lgb_weight * lgb_preds + self.prophet_weight * p_mean
+            comb_p10 = self.lgb_weight * lgb_p10 + self.prophet_weight * p_lower
+            comb_p50 = self.lgb_weight * lgb_p50 + self.prophet_weight * p_mean
+            comb_p90 = self.lgb_weight * lgb_p90 + self.prophet_weight * p_upper
+
+            res_mean[indices] = comb_mean
+            res_p10[indices] = np.minimum(comb_p10, comb_mean)
+            res_p50[indices] = comb_p50
+            res_p90[indices] = np.maximum(comb_p90, comb_mean)
+
+        def clean_arr(arr: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
+            safe = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.maximum(0.0, safe)
+
+        return {
+            "mean": clean_arr(res_mean),
+            "p10": clean_arr(res_p10),
+            "p50": clean_arr(res_p50),
+            "p90": clean_arr(res_p90),
+        }
 
     def save(self, path: Path | str | None = None) -> None:
         """Serialize and save trained ensemble models to filesystem.
