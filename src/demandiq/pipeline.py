@@ -8,6 +8,7 @@ from demandiq.config import settings
 from demandiq.data.loader import load_and_validate_orders
 from demandiq.features.engineer import build_features
 from demandiq.models.cross_validate import evaluate_walk_forward
+from demandiq.models.evaluate_anomaly import evaluate_anomaly_detection
 from demandiq.models.forecaster import DemandForecaster
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,9 @@ def run_pipeline(
     detector = HybridAnomalyDetector()
     detector.fit(residuals)
     detector.save(path=detector_path)
+
+    # 6. Evaluate anomaly detection performance against ground-truth labels if available
+    evaluate_anomaly_detection(detector, df_feats, residuals=residuals)
 
     logger.info("=== Successfully Completed DemandIQ Pipeline Execution ===")
     return forecaster, detector, cv_metrics
