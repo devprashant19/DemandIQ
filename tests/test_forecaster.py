@@ -70,5 +70,9 @@ def test_forecaster_predict_intervals(fe_orders_df: pd.DataFrame) -> None:
     assert "p90" in intervals
 
     assert len(intervals["p10"]) == len(fe_orders_df)
-    assert np.all(intervals["p10"] <= intervals["mean"] + 1e-6), "p10 should be less than or equal to mean"
-    assert np.all(intervals["p90"] >= intervals["mean"] - 1e-6), "p90 should be greater than or equal to mean"
+    assert np.all(
+        intervals["p10"] <= intervals["mean"] + 1e-6
+    ), "p10 should be less than or equal to mean"
+    assert np.all(
+        intervals["p90"] >= intervals["mean"] - 1e-6
+    ), "p90 should be greater than or equal to mean"

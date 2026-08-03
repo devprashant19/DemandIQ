@@ -42,7 +42,9 @@ class DemandForecaster:
         """
         self.lgb_weight = lgb_weight
         self.prophet_weight = prophet_weight
-        self.quantile_alphas = quantile_alphas if quantile_alphas is not None else settings.quantile_alphas
+        self.quantile_alphas = (
+            quantile_alphas if quantile_alphas is not None else settings.quantile_alphas
+        )
         self.random_seed = random_seed
         self._lgb_models: dict[str, lgb.LGBMRegressor] = {}
         self._lgb_quantile_models: dict[str, dict[float, lgb.LGBMRegressor]] = {}

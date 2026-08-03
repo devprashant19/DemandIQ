@@ -38,9 +38,13 @@ def evaluate_anomaly_detection(
     if ground_truth_df is not None:
         gt_df = ground_truth_df.copy()
     else:
-        gt_path = Path(ground_truth_path) if ground_truth_path else settings.ground_truth_anomalies_path
+        gt_path = (
+            Path(ground_truth_path) if ground_truth_path else settings.ground_truth_anomalies_path
+        )
         if not gt_path.exists():
-            logger.warning("Ground-truth anomaly file not found at %s. Skipping evaluation.", gt_path)
+            logger.warning(
+                "Ground-truth anomaly file not found at %s. Skipping evaluation.", gt_path
+            )
             return {}
         gt_df = pd.read_csv(gt_path)
 

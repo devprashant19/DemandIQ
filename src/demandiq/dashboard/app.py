@@ -209,6 +209,7 @@ def main() -> None:  # pragma: no cover
         with st.sidebar.status("Rebuilding models & features...", expanded=True) as status:
             st.write("Generating synthetic data and engineering leak-free features...")
             from demandiq.pipeline import run_pipeline
+
             run_pipeline()
             st.cache_resource.clear()
             st.cache_data.clear()
@@ -349,8 +350,16 @@ def main() -> None:  # pragma: no cover
 
         # CSV Export Button
         export_cols = [
-            "date", "city", "orders", "pred_orders", "pred_p10", "pred_p90",
-            "residuals", "is_anomaly", "anomaly_score", "anomaly_type",
+            "date",
+            "city",
+            "orders",
+            "pred_orders",
+            "pred_p10",
+            "pred_p90",
+            "residuals",
+            "is_anomaly",
+            "anomaly_score",
+            "anomaly_type",
         ]
         avail_cols = [c for c in export_cols if c in sub_df.columns]
         csv_data = sub_df[avail_cols].to_csv(index=False).encode("utf-8")
@@ -393,7 +402,9 @@ def main() -> None:  # pragma: no cover
 
                     st.markdown("#### 🔍 Primary SHAP Attribution Drivers")
                     row_drivers = get_top_drivers(forecaster, row, n=3, city=selected_city)
-                    if isinstance(row_drivers, list) and all(isinstance(i, tuple) for i in row_drivers):
+                    if isinstance(row_drivers, list) and all(
+                        isinstance(i, tuple) for i in row_drivers
+                    ):
                         for d_name, d_val in row_drivers:
                             sign = "+" if d_val > 0 else ""
                             st.markdown(
@@ -410,7 +421,9 @@ def main() -> None:  # pragma: no cover
         date_options = sub_df["date"].dt.strftime("%Y-%m-%d").tolist()
         selected_date_str = str(
             st.selectbox(
-                "Choose Specific Observation Date", options=date_options, index=len(date_options) - 1
+                "Choose Specific Observation Date",
+                options=date_options,
+                index=len(date_options) - 1,
             )
         )
 
@@ -456,7 +469,9 @@ def main() -> None:  # pragma: no cover
             "Deconstruct daily order time-series into macro underlying growth trend, weekly seasonal oscillation, and unexplained residual noise."
         )
         if len(sub_df) < 14:
-            st.info("⚠️ Please select an analysis window of at least 14 days to compute seasonal decomposition.")
+            st.info(
+                "⚠️ Please select an analysis window of at least 14 days to compute seasonal decomposition."
+            )
         else:
             with st.spinner("Decomposing structural time-series via STL..."):
                 try:
@@ -494,7 +509,9 @@ def main() -> None:  # pragma: no cover
                         paper_bgcolor="rgba(0,0,0,0)",
                         plot_bgcolor="rgba(15, 23, 42, 0.5)",
                         font=dict(color="#E2E8F0"),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        legend=dict(
+                            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                        ),
                         xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)"),
                         yaxis=dict(
                             title="Order Component Volume",
@@ -584,9 +601,7 @@ def main() -> None:  # pragma: no cover
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(15, 23, 42, 0.5)",
                 font=dict(color="#E2E8F0"),
-                xaxis=dict(
-                    title="City Market", showgrid=True, gridcolor="rgba(255,255,255,0.05)"
-                ),
+                xaxis=dict(title="City Market", showgrid=True, gridcolor="rgba(255,255,255,0.05)"),
                 yaxis=dict(
                     title="Avg Daily Orders", showgrid=True, gridcolor="rgba(255,255,255,0.05)"
                 ),

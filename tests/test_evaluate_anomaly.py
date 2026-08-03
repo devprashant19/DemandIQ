@@ -64,7 +64,9 @@ def test_evaluate_anomaly_detection_raises_when_no_predictions(
     detector = HybridAnomalyDetector()
     detector.fit(np.zeros(len(sample_orders_df)))
 
-    with pytest.raises(ValueError, match="DataFrame missing 'is_anomaly' and no residuals provided"):
+    with pytest.raises(
+        ValueError, match="DataFrame missing 'is_anomaly' and no residuals provided"
+    ):
         evaluate_anomaly_detection(
             detector=detector,
             df=sample_orders_df,
