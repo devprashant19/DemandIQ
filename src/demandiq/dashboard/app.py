@@ -17,6 +17,7 @@ from demandiq.features.engineer import build_features
 from demandiq.models.cross_validate import compute_metrics
 from demandiq.models.explain import get_top_drivers
 from demandiq.models.forecaster import DemandForecaster
+from demandiq.models.model_card import generate_model_report
 
 logger = logging.getLogger(__name__)
 
@@ -238,8 +239,8 @@ def main() -> None:  # pragma: no cover
             sub_df["anomaly_type"] = np.where(sub_df["is_anomaly"], "anomaly", "normal")
 
     # --- Main Application Tabs ---
-    tab_deep_dive, tab_benchmarks, tab_future = st.tabs(
-        ["📈 City Deep Dive", "🗺️ City Benchmarks", "📅 Future Forecast"]
+    tab_deep_dive, tab_benchmarks, tab_future, tab_model_card = st.tabs(
+        ["📈 City Deep Dive", "🗺️ City Benchmarks", "📅 Future Forecast", "🏅 Model Report Card"]
     )
 
     with tab_deep_dive:
@@ -714,6 +715,40 @@ def main() -> None:  # pragma: no cover
                     st.plotly_chart(fut_fig, use_container_width=True)
             except Exception as e:
                 st.error(f"Failed to generate future forecast: {e}")
+
+    with tab_model_card:
+        st.markdown("### 🏅 Global Model Report Card")
+        st.markdown(
+            "Comprehensive evaluation of model health, calibration, and anomaly diagnostic performance."
+        )
+
+        with st.spinner("Compiling model report card..."):
+            report = generate_model_report(df, forecaster, detector)
+
+            mc1, mc2, mc3 = st.columns(3)
+            with mc1:
+                st.metric("Global MAPE", f"{report['global'].get('mape', 0.0):.2f}%")
+            with mc2:
+                st.metric("Global RMSE", f"{report['global'].get('rmse', 0.0):.1f}")
+            with mc3:
+                age_str = (
+                    f"{report['metadata'].get('age_days', 0.0):.1f} days"
+                    if report["metadata"].get("age_days", -1) >= 0
+                    else "Unknown"
+                )
+                st.metric("Model Age", age_str)
+
+            st.markdown("#### Interval Calibration (P10-P90 Coverage)")
+            cov = report["calibration"].get("p10_p90_coverage", 0.0)
+            if cov is not None:
+                st.progress(cov)
+                st.caption(f"Actual coverage: **{cov*100:.1f}%** (Target: 80%)")
+
+            st.markdown("#### Anomaly Flagging Rate")
+            rate = report["anomaly"].get("flag_rate", 0.0)
+            if rate is not None:
+                st.progress(rate if rate <= 1.0 else 1.0)
+                st.caption(f"Flag rate: **{rate*100:.2f}%** (Expected ~1.5%)")
 
     st.markdown("---")
     st.caption(
