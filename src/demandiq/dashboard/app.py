@@ -15,7 +15,7 @@ from demandiq.config import settings
 from demandiq.data.loader import load_and_validate_orders
 from demandiq.features.engineer import build_features
 from demandiq.models.cross_validate import compute_metrics, compute_rolling_accuracy
-from demandiq.models.explain import get_top_drivers
+from demandiq.models.explain import get_top_drivers, get_weather_shap_contributions
 from demandiq.models.forecaster import DemandForecaster
 from demandiq.models.model_card import generate_model_report
 
@@ -499,6 +499,55 @@ def main() -> None:  # pragma: no cover
                 margin=dict(l=20, r=20, t=20, b=20),
             )
             st.plotly_chart(shap_fig, use_container_width=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # --- Section 4.5: Weather Impact Attribution Panel ---
+        st.markdown("### ☁️ Weather Impact Attribution")
+        st.markdown(
+            "Quantify the demand elasticity of weather (temperature and rainfall) using aggregated SHAP attributions."
+        )
+
+        with st.spinner("Calculating weather SHAP elasticity..."):
+            weather_shap = get_weather_shap_contributions(forecaster, sub_df, selected_city)
+
+            weather_fig = go.Figure()
+            weather_fig.add_trace(
+                go.Scatter(
+                    x=sub_df["date"],
+                    y=sub_df["orders"],
+                    mode="lines",
+                    name="Actual Orders",
+                    line=dict(color="#38BDF8", width=2),
+                )
+            )
+            weather_fig.add_trace(
+                go.Bar(
+                    x=sub_df["date"],
+                    y=weather_shap,
+                    name="Weather Order Impact",
+                    marker=dict(color=["#10B981" if v > 0 else "#F43F5E" for v in weather_shap]),
+                    yaxis="y2",
+                    opacity=0.6,
+                )
+            )
+            weather_fig.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(15, 23, 42, 0.5)",
+                font=dict(color="#E2E8F0"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)"),
+                yaxis=dict(title="Daily Orders", showgrid=True, gridcolor="rgba(255,255,255,0.05)"),
+                yaxis2=dict(
+                    title="Weather Impact (Orders)",
+                    overlaying="y",
+                    side="right",
+                    showgrid=False,
+                ),
+                margin=dict(l=20, r=20, t=50, b=20),
+                hovermode="x unified",
+                height=350,
+            )
+            st.plotly_chart(weather_fig, use_container_width=True)
         st.markdown("<br>", unsafe_allow_html=True)
 
         # --- Section 5: Structural Trend & Seasonality Decomposition (STL) ---

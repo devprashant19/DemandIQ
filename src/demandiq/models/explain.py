@@ -100,3 +100,35 @@ def get_top_drivers(
     if is_single_row:
         return batch_drivers[0]
     return batch_drivers
+
+
+def get_weather_shap_contributions(
+    model: DemandForecaster | lgb.LGBMRegressor, X: pd.DataFrame, city: str | None = None
+) -> np.ndarray[Any, Any]:
+    """Extract cumulative SHAP attribution for weather-related features across observations.
+
+    Args:
+        model (DemandForecaster | lgb.LGBMRegressor): Fitted model instance.
+        X (pd.DataFrame): DataFrame containing input records.
+        city (str | None): Optional target city.
+
+    Returns:
+        np.ndarray: Array of total weather SHAP attributions per row.
+    """
+    shap_vals, _ = get_shap_values(model, X, city)
+
+    weather_cols = {
+        "temp_sq",
+        "temp_deviation",
+        "log_rainfall",
+        "rain_intensity",
+        "promo_x_rainy",
+        "festival_x_rainy",
+    }
+    weather_indices = [i for i, col in enumerate(FEATURE_COLUMNS) if col in weather_cols]
+
+    if len(weather_indices) == 0:
+        return np.zeros(len(X), dtype=float)
+
+    weather_sum = np.sum(shap_vals[:, weather_indices], axis=1)
+    return np.array(weather_sum, dtype=float)
