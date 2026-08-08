@@ -42,6 +42,39 @@ def compute_metrics(y_true: np.ndarray[Any, Any], y_pred: np.ndarray[Any, Any]) 
     return {"mape": mape, "rmse": rmse, "mae": mae}
 
 
+def compute_rolling_accuracy(df: pd.DataFrame, window_days: int = 30) -> pd.DataFrame:
+    """Compute rolling MAPE across a sliding window of recent predictions.
+
+    Args:
+        df (pd.DataFrame): Dataframe containing 'date', 'orders', and 'pred_orders'.
+        window_days (int): Number of days in the rolling window.
+
+    Returns:
+        pd.DataFrame: Dataframe with 'date' and 'rolling_mape' columns.
+    """
+    if "date" not in df.columns or "orders" not in df.columns or "pred_orders" not in df.columns:
+        return pd.DataFrame()
+
+    wdf = df[["date", "orders", "pred_orders"]].copy()
+    wdf["date"] = pd.to_datetime(wdf["date"])
+    wdf = wdf.sort_values("date").reset_index(drop=True)
+
+    # Calculate daily absolute percentage error
+    wdf["ape"] = (
+        np.abs((wdf["orders"] - wdf["pred_orders"]) / np.maximum(wdf["orders"], 1.0)) * 100.0
+    )
+
+    # Group by date in case of multiple cities, compute daily mean APE first
+    daily_ape = wdf.groupby("date")["ape"].mean().reset_index()
+    daily_ape = daily_ape.sort_values("date").set_index("date")
+
+    # Compute rolling mean of the daily APE
+    rolling = daily_ape.rolling(f"{window_days}D", min_periods=1).mean()
+    rolling = rolling.reset_index().rename(columns={"ape": "rolling_mape"})
+
+    return rolling
+
+
 def evaluate_walk_forward(
     df: pd.DataFrame,
     n_splits: int = settings.min_cv_folds,

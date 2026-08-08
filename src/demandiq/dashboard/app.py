@@ -14,7 +14,7 @@ from demandiq.anomaly.detector import HybridAnomalyDetector
 from demandiq.config import settings
 from demandiq.data.loader import load_and_validate_orders
 from demandiq.features.engineer import build_features
-from demandiq.models.cross_validate import compute_metrics
+from demandiq.models.cross_validate import compute_metrics, compute_rolling_accuracy
 from demandiq.models.explain import get_top_drivers
 from demandiq.models.forecaster import DemandForecaster
 from demandiq.models.model_card import generate_model_report
@@ -372,6 +372,41 @@ def main() -> None:  # pragma: no cover
             file_name=f"demandiq_{selected_city.lower().replace(' ', '_')}_results.csv",
             mime="text/csv",
         )
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # --- Section 2.5: Rolling Forecast Accuracy Tracker ---
+        st.markdown("### 🎯 Rolling Forecast Accuracy (MAPE)")
+        st.markdown("Monitor model drift and performance degradation over a sliding time window.")
+        roll_window = st.radio(
+            "Select Rolling Window", options=[7, 14, 30, 60], index=2, horizontal=True
+        )
+        rolling_df = compute_rolling_accuracy(sub_df, window_days=int(roll_window))
+        if not rolling_df.empty:
+            roll_fig = go.Figure(
+                go.Scatter(
+                    x=rolling_df["date"],
+                    y=rolling_df["rolling_mape"],
+                    mode="lines",
+                    name=f"{roll_window}-Day Rolling MAPE",
+                    line=dict(color="#EC4899", width=2.5),
+                    hovertemplate="Date: %{x|%Y-%m-%d}<br>Rolling MAPE: %{y:.2f}%<extra></extra>",
+                )
+            )
+            roll_fig.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(15, 23, 42, 0.5)",
+                font=dict(color="#E2E8F0"),
+                xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)"),
+                yaxis=dict(
+                    title="Rolling MAPE (%)", showgrid=True, gridcolor="rgba(255,255,255,0.05)"
+                ),
+                margin=dict(l=20, r=20, t=30, b=20),
+                hovermode="x unified",
+                height=300,
+            )
+            st.plotly_chart(roll_fig, use_container_width=True)
+        else:
+            st.warning("Insufficient data to compute rolling accuracy.")
         st.markdown("<br>", unsafe_allow_html=True)
 
         # --- Section 3: Anomaly Detail Drill-Down Panel ---
