@@ -13,6 +13,7 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from demandiq.anomaly.detector import HybridAnomalyDetector
 from demandiq.config import settings
 from demandiq.data.loader import load_and_validate_orders
+from demandiq.data.monitor import check_data_health
 from demandiq.features.engineer import build_features
 from demandiq.models.cross_validate import compute_metrics, compute_rolling_accuracy
 from demandiq.models.explain import get_top_drivers, get_weather_shap_contributions
@@ -175,6 +176,20 @@ def main() -> None:  # pragma: no cover
             "to generate the synthetic dataset and train the machine learning ensemble artifacts."
         )
         st.stop()
+
+    # Data Quality & Freshness Guardrail
+    health = check_data_health(df, max_stale_days=7)
+    if not health["is_healthy"]:
+        st.error("🚨 **CRITICAL DATA QUALITY ALERT** 🚨")
+        for err in health.get("errors", []):
+            st.error(f"- {err}")
+        st.warning(
+            "Dashboard blocked due to stale or corrupted data. Please run the data pipeline to refresh records."
+        )
+        st.stop()
+
+    for warn in health.get("warnings", []):
+        st.sidebar.warning(f"⚠️ **Data Stale Warning:** {warn}")
 
     # --- Sidebar Filtering Controls ---
     st.sidebar.title("🎛️ Dashboard Controls")
