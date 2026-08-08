@@ -76,3 +76,34 @@ def test_forecaster_predict_intervals(fe_orders_df: pd.DataFrame) -> None:
     assert np.all(
         intervals["p90"] >= intervals["mean"] - 1e-6
     ), "p90 should be greater than or equal to mean"
+
+
+def test_forecaster_forecast_future(fe_orders_df: pd.DataFrame) -> None:
+    """Verify forecast_future generates N future days for each city."""
+    model = DemandForecaster(random_seed=42)
+    model.fit(fe_orders_df)
+
+    # Take last 40 days for a couple of cities to speed up test
+    cities = ["New York", "Chicago"]
+    sub_df = fe_orders_df[fe_orders_df["city"].isin(cities)].copy()
+
+    # We just need the last 40 days per city
+    sub_df = sub_df.groupby("city").tail(40).reset_index(drop=True)
+
+    horizon = 5
+    future_df = model.forecast_future(horizon_days=horizon, last_known_df=sub_df)
+
+    assert len(future_df) == len(cities) * horizon
+    assert "is_future" in future_df.columns
+    assert future_df["is_future"].all()
+    assert future_df["orders"].notnull().all()
+    assert future_df["pred_orders"].notnull().all()
+
+    # Check that dates are correctly advanced
+    ny_hist = sub_df[sub_df["city"] == "New York"]
+    last_hist_date = ny_hist["date"].max()
+
+    ny_future = future_df[future_df["city"] == "New York"]
+    assert len(ny_future) == horizon
+    assert ny_future["date"].min() == last_hist_date + pd.Timedelta(days=1)
+    assert ny_future["date"].max() == last_hist_date + pd.Timedelta(days=horizon)

@@ -290,6 +290,86 @@ class DemandForecaster:
             "p90": clean_arr(res_p90),
         }
 
+    def forecast_future(self, horizon_days: int, last_known_df: pd.DataFrame) -> pd.DataFrame:
+        """Generate future demand forecast iteratively rolling forward day by day.
+
+        Args:
+            horizon_days (int): Number of days to forecast into the future.
+            last_known_df (pd.DataFrame): Historical data including at least 30 days of recent orders.
+
+        Returns:
+            pd.DataFrame: Forecasted dataframe containing future dates and predictions.
+
+        Raises:
+            RuntimeError: If forecaster has not been fitted prior to invoking forecast_future.
+        """
+        if not self.is_fitted:
+            raise RuntimeError(
+                "DemandForecaster must be fitted or loaded before calling forecast_future."
+            )
+
+        future_dfs = []
+        for city in last_known_df["city"].unique():
+            city_hist = last_known_df[last_known_df["city"] == city].sort_values("date").copy()
+            if len(city_hist) < 30:
+                logger.warning(
+                    f"City {city} has <30 days history. Rolling features may be unstable."
+                )
+
+            carry_cols = [
+                col
+                for col in [
+                    "temperature_c",
+                    "rainfall_mm",
+                    "is_rainy",
+                    "promo_active",
+                    "is_holiday",
+                ]
+                if col in city_hist.columns
+            ]
+
+            last_date = city_hist["date"].max()
+
+            for step in range(1, horizon_days + 1):
+                next_date = last_date + pd.Timedelta(days=step)
+                new_row = city_hist.iloc[[-1]].copy()
+                new_row["date"] = next_date
+                new_row["orders"] = np.nan
+                new_row["is_anomaly"] = False
+                new_row["anomaly_score"] = 0.0
+
+                for col in carry_cols:
+                    if col in ["promo_active", "is_holiday"]:
+                        new_row[col] = 0
+                    elif col in ["is_rainy"]:
+                        new_row[col] = False
+                    else:
+                        new_row[col] = city_hist[col].mean()
+
+                new_row["is_future"] = True
+                city_hist = pd.concat([city_hist, new_row], ignore_index=True)
+
+                hist_tail = city_hist.tail(40).copy()
+                feats = build_features(hist_tail)
+                last_feat_row = feats.iloc[[-1]]
+
+                intervals = self.predict_intervals(last_feat_row)
+
+                idx_last = city_hist.index[-1]
+                city_hist.loc[idx_last, "orders"] = intervals["mean"][0]
+                city_hist.loc[idx_last, "pred_orders"] = intervals["mean"][0]
+                city_hist.loc[idx_last, "pred_p10"] = intervals["p10"][0]
+                city_hist.loc[idx_last, "pred_p50"] = intervals["p50"][0]
+                city_hist.loc[idx_last, "pred_p90"] = intervals["p90"][0]
+
+            future_dfs.append(city_hist[city_hist.get("is_future") == True])  # noqa: E712
+
+        if not future_dfs:
+            return pd.DataFrame()
+
+        final_df = pd.concat(future_dfs, ignore_index=True)
+        return final_df
+
     def save(self, path: Path | str | None = None) -> None:
         """Serialize and save trained ensemble models to filesystem.
 

@@ -238,7 +238,9 @@ def main() -> None:  # pragma: no cover
             sub_df["anomaly_type"] = np.where(sub_df["is_anomaly"], "anomaly", "normal")
 
     # --- Main Application Tabs ---
-    tab_deep_dive, tab_benchmarks = st.tabs(["📈 City Deep Dive", "🗺️ City Benchmarks"])
+    tab_deep_dive, tab_benchmarks, tab_future = st.tabs(
+        ["📈 City Deep Dive", "🗺️ City Benchmarks", "📅 Future Forecast"]
+    )
 
     with tab_deep_dive:
         # --- Section 1: KPI & Metrics Panel ---
@@ -645,6 +647,73 @@ def main() -> None:  # pragma: no cover
             margin=dict(l=20, r=20, t=30, b=20),
         )
         st.plotly_chart(hm_fig, use_container_width=True)
+
+    with tab_future:
+        st.markdown("### 📅 Future Horizon Forecasting")
+        st.markdown(
+            "Generate forward-looking demand volume predictions with confidence bands for upcoming operational cycles."
+        )
+
+        horizon = st.slider("Forecast Horizon (Days)", min_value=7, max_value=90, value=30, step=1)
+
+        with st.spinner(f"Rolling forward {horizon} days into the future..."):
+            try:
+                future_df = forecaster.forecast_future(horizon_days=horizon, last_known_df=sub_df)
+
+                if future_df.empty:
+                    st.warning("Could not generate future forecast.")
+                else:
+                    st.success(
+                        f"Successfully generated a {horizon}-day ahead forecast for {selected_city}!"
+                    )
+
+                    fut_city_df = future_df[future_df["city"] == selected_city].sort_values("date")
+
+                    fut_fig = go.Figure()
+
+                    # Future Confidence interval band (p10 to p90)
+                    fut_fig.add_trace(
+                        go.Scatter(
+                            x=list(fut_city_df["date"]) + list(fut_city_df["date"])[::-1],
+                            y=list(fut_city_df["pred_p90"]) + list(fut_city_df["pred_p10"])[::-1],
+                            fill="toself",
+                            fillcolor="rgba(168, 85, 247, 0.18)",
+                            line=dict(color="rgba(255,255,255,0)"),
+                            hoverinfo="skip",
+                            name="80% Future Prediction Interval (P10-P90)",
+                        )
+                    )
+
+                    # Predicted orders trace
+                    fut_fig.add_trace(
+                        go.Scatter(
+                            x=fut_city_df["date"],
+                            y=fut_city_df["pred_orders"],
+                            mode="lines+markers",
+                            name="Future Ensemble Forecast",
+                            line=dict(color="#A855F7", width=2, dash="dash"),
+                            hovertemplate="Date: %{x|%Y-%m-%d}<br>Predicted Orders: %{y:,.1f}<extra></extra>",
+                        )
+                    )
+
+                    fut_fig.update_layout(
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(15, 23, 42, 0.5)",
+                        font=dict(color="#E2E8F0"),
+                        legend=dict(
+                            orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                        ),
+                        xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)"),
+                        yaxis=dict(
+                            title="Daily Orders", showgrid=True, gridcolor="rgba(255,255,255,0.05)"
+                        ),
+                        margin=dict(l=20, r=20, t=50, b=20),
+                        hovermode="x unified",
+                        height=450,
+                    )
+                    st.plotly_chart(fut_fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"Failed to generate future forecast: {e}")
 
     st.markdown("---")
     st.caption(
