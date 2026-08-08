@@ -18,6 +18,7 @@ from demandiq.models.cross_validate import compute_metrics, compute_rolling_accu
 from demandiq.models.explain import get_top_drivers, get_weather_shap_contributions
 from demandiq.models.forecaster import DemandForecaster
 from demandiq.models.model_card import generate_model_report
+from demandiq.reports.anomaly_digest import generate_markdown_digest
 
 logger = logging.getLogger(__name__)
 
@@ -463,6 +464,15 @@ def main() -> None:  # pragma: no cover
                             st.markdown(
                                 f"- **{d_name}**: `{sign}{d_val:.1f}` orders impact vs baseline"
                             )
+
+            st.markdown("#### 📄 Export Alert Digest")
+            digest_md = generate_markdown_digest(anom_df, selected_city)
+            st.download_button(
+                label="⬇️ Download Anomaly Alert Digest (Markdown)",
+                data=digest_md.encode("utf-8"),
+                file_name=f"demandiq_{selected_city.lower().replace(' ', '_')}_alerts.md",
+                mime="text/markdown",
+            )
         st.markdown("<br>", unsafe_allow_html=True)
 
         # --- Section 4: SHAP Feature Explanations ---
