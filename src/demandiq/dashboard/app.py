@@ -203,6 +203,21 @@ def main() -> None:  # pragma: no cover
         st.warning("No historical demand order observations match the chosen timeframe filter.")
         st.stop()
 
+    # Ensemble Weight Tuning
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🎛️ Ensemble Weight Tuning")
+    new_lgb_wt = st.sidebar.slider(
+        "LightGBM Weight (%)",
+        min_value=0,
+        max_value=100,
+        value=int(getattr(forecaster, "lgb_weight", 0.6) * 100),
+        step=5,
+        help="Higher weight favors the non-linear LightGBM model. Prophet weight is automatically calculated as (100% - LGB Weight).",
+    )
+    if hasattr(forecaster, "lgb_weight"):
+        forecaster.lgb_weight = new_lgb_wt / 100.0
+        forecaster.prophet_weight = 1.0 - forecaster.lgb_weight
+
     # Model retraining execution button in sidebar
     st.sidebar.markdown("---")
     st.sidebar.subheader("🚀 Model Management")
