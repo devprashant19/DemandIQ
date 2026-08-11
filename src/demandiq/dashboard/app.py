@@ -411,7 +411,9 @@ def main() -> None:  # pragma: no cover
         roll_window = st.radio(
             "Select Rolling Window", options=[7, 14, 30, 60], index=2, horizontal=True
         )
-        rolling_df = compute_rolling_accuracy(sub_df, window_days=int(roll_window))
+        rolling_df = compute_rolling_accuracy(
+            sub_df, window_days=int(roll_window) if roll_window is not None else 30
+        )
         if not rolling_df.empty:
             roll_fig = go.Figure(
                 go.Scatter(
