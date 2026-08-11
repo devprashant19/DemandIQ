@@ -7,19 +7,27 @@ from demandiq.models.model_card import generate_model_report
 
 
 class DummyForecaster:
+    """Mock forecaster class for testing model report generation."""
+
     def __init__(self):
+        """Initialize mock forecaster with fitted state."""
         self.is_fitted = True
 
     def predict(self, df):
+        """Mock prediction returning 90% of actual orders."""
         return df["orders"].to_numpy() * 0.9  # Mock predictions
 
     def predict_intervals(self, df):
+        """Mock prediction intervals."""
         preds = self.predict(df)
         return {"mean": preds, "p10": preds * 0.8, "p90": preds * 1.2}
 
 
 class DummyDetector:
+    """Mock anomaly detector class."""
+
     def predict(self, residuals):
+        """Mock anomaly prediction based on residual threshold."""
         return np.where(np.abs(residuals) > 10, True, False)
 
 
