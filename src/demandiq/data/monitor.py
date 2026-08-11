@@ -22,6 +22,12 @@ def check_data_health(df: pd.DataFrame, max_stale_days: int = 3) -> dict[str, An
         "warnings": [],
     }
 
+    # 0. Volume Check
+    if len(df) == 0:
+        health["is_healthy"] = False
+        health["errors"].append("Dataset is completely empty.")
+        return health
+
     # 1. Schema Drift Check
     expected_cols = {"date", "city", "orders"}
     missing = expected_cols - set(df.columns)
@@ -49,10 +55,5 @@ def check_data_health(df: pd.DataFrame, max_stale_days: int = 3) -> dict[str, An
         health["warnings"].append(
             f"Data is {days_stale} days old, but within acceptable threshold."
         )
-
-    # 3. Volume Check
-    if len(df) == 0:
-        health["is_healthy"] = False
-        health["errors"].append("Dataset is completely empty.")
 
     return health
