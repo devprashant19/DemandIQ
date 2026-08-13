@@ -132,3 +132,33 @@ def get_weather_shap_contributions(
 
     weather_sum = np.sum(shap_vals[:, weather_indices], axis=1)
     return np.array(weather_sum, dtype=float)
+
+
+def get_global_shap_summary(
+    model: DemandForecaster | lgb.LGBMRegressor,
+    X: pd.DataFrame,
+    city: str | None = None,
+    n_features: int = 15,
+) -> pd.DataFrame:
+    """Compute global SHAP feature importance as mean absolute SHAP across all observations.
+
+    This provides a macro-level view of which features drive the model's predictions overall,
+    complementing the per-observation local attribution from get_top_drivers.
+
+    Args:
+        model (DemandForecaster | lgb.LGBMRegressor): Fitted model instance.
+        X (pd.DataFrame): DataFrame containing input records to summarize.
+        city (str | None): Optional target city for ensemble selection.
+        n_features (int): Number of top features to return (default 15).
+
+    Returns:
+        pd.DataFrame: DataFrame with columns ['feature', 'mean_abs_shap'] sorted descending.
+    """
+    shap_vals, _ = get_shap_values(model, X, city)
+
+    mean_abs_shap = np.mean(np.abs(shap_vals), axis=0)
+    summary_df = pd.DataFrame(
+        {"feature": FEATURE_COLUMNS, "mean_abs_shap": [float(v) for v in mean_abs_shap]}
+    )
+    summary_df = summary_df.sort_values("mean_abs_shap", ascending=False).reset_index(drop=True)
+    return summary_df.head(n_features)
