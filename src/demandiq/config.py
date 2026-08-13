@@ -51,6 +51,10 @@ class Settings(BaseSettings):
         default=REPORTS_DIR / "fold_predictions.png",
         description="PNG path for fold-by-fold validation plots",
     )
+    model_registry_dir: Path = Field(
+        default=MODELS_DIR / "registry",
+        description="Path to save versioned models",
+    )
 
     # Modeling defaults
     lgb_weight: float = Field(default=0.6, description="Weight for LightGBM model in ensemble")
@@ -67,6 +71,15 @@ class Settings(BaseSettings):
     zscore_threshold: float = Field(
         default=2.5, description="Z-score threshold on residuals for anomaly detection"
     )
+
+    # Notifications
+    alert_enabled: bool = Field(default=False, description="Enable push notifications for anomalies")
+    smtp_host: str | None = Field(default=None, description="SMTP host for email alerts")
+    smtp_port: int = Field(default=587, description="SMTP port")
+    smtp_user: str | None = Field(default=None, description="SMTP username")
+    smtp_password: str | None = Field(default=None, description="SMTP password")
+    smtp_to: str | None = Field(default=None, description="Recipient email address")
+    slack_webhook_url: str | None = Field(default=None, description="Slack webhook URL for alerts")
 
 
 def get_settings() -> Settings:
