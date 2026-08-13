@@ -290,12 +290,16 @@ class DemandForecaster:
             "p90": clean_arr(res_p90),
         }
 
-    def forecast_future(self, horizon_days: int, last_known_df: pd.DataFrame) -> pd.DataFrame:
+    def forecast_future(
+        self, horizon_days: int, last_known_df: pd.DataFrame, weather_df: pd.DataFrame | None = None
+    ) -> pd.DataFrame:
         """Generate future demand forecast iteratively rolling forward day by day.
 
         Args:
             horizon_days (int): Number of days to forecast into the future.
             last_known_df (pd.DataFrame): Historical data including at least 30 days of recent orders.
+            weather_df (pd.DataFrame | None): Optional live weather data with 'date', 'city',
+                'temperature_c', 'rainfall_mm', 'is_rainy' columns.
 
         Returns:
             pd.DataFrame: Forecasted dataframe containing future dates and predictions.
@@ -327,6 +331,13 @@ class DemandForecaster:
                 ]
                 if col in city_hist.columns
             ]
+            
+            # Pre-filter weather data for this city if available
+            city_weather = None
+            if weather_df is not None and not weather_df.empty:
+                city_weather = weather_df[weather_df["city"] == city].copy()
+                if not city_weather.empty:
+                    city_weather["date"] = pd.to_datetime(city_weather["date"]).dt.date
 
             last_date = city_hist["date"].max()
 
@@ -345,6 +356,14 @@ class DemandForecaster:
                         new_row[col] = False
                     else:
                         new_row[col] = city_hist[col].mean()
+
+                # Override with live weather if available for this specific date
+                if city_weather is not None:
+                    match = city_weather[city_weather["date"] == next_date.date()]
+                    if not match.empty:
+                        for w_col in ["temperature_c", "rainfall_mm", "is_rainy"]:
+                            if w_col in match.columns:
+                                new_row[w_col] = match.iloc[0][w_col]
 
                 new_row["is_future"] = True
                 city_hist = pd.concat([city_hist, new_row], ignore_index=True)
