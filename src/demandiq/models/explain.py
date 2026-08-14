@@ -81,7 +81,9 @@ def get_top_drivers(
         df_batch = X_row.to_frame().T
         is_single_row = True
     else:
-        df_batch = X_row.copy()  # type: ignore[assignment]
+        _copy = X_row.copy()
+        assert isinstance(_copy, pd.DataFrame)
+        df_batch = _copy
         is_single_row = len(df_batch) == 1
 
     shap_matrix, _ = get_shap_values(model, df_batch, city=city)

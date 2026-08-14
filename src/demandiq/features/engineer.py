@@ -181,8 +181,11 @@ def build_features(
     out_df["lag_7_ratio"] = out_df["orders_lag_1"] / (out_df["orders_lag_7"] + 1.0)
     out_df["rolling_ratio_7_28"] = out_df["rolling_mean_7"] / (out_df["rolling_mean_28"] + 1.0)
 
-    # Impute initial NaNs resulting from lag shifts using backwards filling then zero-fill
-    out_df = out_df.bfill().ffill().fillna(0.0)
+    try:
+        pd.set_option("future.no_silent_downcasting", True)
+    except Exception:
+        pass
+    out_df = out_df.bfill().ffill().fillna(0.0).infer_objects()
     out_df = out_df.reset_index(drop=True)
 
     logger.debug(

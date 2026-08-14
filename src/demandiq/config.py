@@ -17,7 +17,9 @@ REPORTS_DIR: Path = MODELS_DIR / "reports"
 class Settings(BaseSettings):
     """Application runtime configuration settings loaded from environment variables."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", protected_namespaces=()
+    )
 
     # General Settings
     random_seed: int = Field(default=42, description="Default random seed for reproducibility")
@@ -73,7 +75,9 @@ class Settings(BaseSettings):
     )
 
     # Notifications
-    alert_enabled: bool = Field(default=False, description="Enable push notifications for anomalies")
+    alert_enabled: bool = Field(
+        default=False, description="Enable push notifications for anomalies"
+    )
     smtp_host: str | None = Field(default=None, description="SMTP host for email alerts")
     smtp_port: int = Field(default=587, description="SMTP port")
     smtp_user: str | None = Field(default=None, description="SMTP username")

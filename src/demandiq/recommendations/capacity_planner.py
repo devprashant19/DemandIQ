@@ -1,11 +1,9 @@
 """Capacity and inventory recommendation engine based on demand forecasts."""
 
 import logging
-from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
@@ -50,37 +48,35 @@ class CapacityPlanner:
             return forecast_df.copy()
 
         cost = unit_cost if unit_cost is not None else self.default_unit_cost
-        
+
         df = forecast_df.copy()
-        
+
         # Calculate recommended inventory as p90 + safety stock percentage
         # We use p90 to cover most variance, then add a strategic buffer
         buffer_multiplier = 1.0 + (self.safety_stock_pct / 100.0)
         df["recommended_inventory"] = np.ceil(df["pred_p90"] * buffer_multiplier).astype(int)
-        
+
         # Reorder point is slightly below recommended but above mean to avoid disruption
         df["reorder_point"] = np.ceil((df["pred_orders"] + df["pred_p90"]) / 2.0).astype(int)
-        
+
         # Expected baseline cost if meeting the mean forecast exactly
         df["expected_cost"] = df["pred_orders"] * cost
-        
+
         # Max exposed cost based on recommended inventory limit
         df["max_exposed_cost"] = df["recommended_inventory"] * cost
 
         # Risk level classification based on the spread between p90 and mean
         # High spread means high uncertainty
         spread_ratio = np.where(
-            df["pred_orders"] > 0,
-            (df["pred_p90"] - df["pred_orders"]) / df["pred_orders"],
-            0.0
+            df["pred_orders"] > 0, (df["pred_p90"] - df["pred_orders"]) / df["pred_orders"], 0.0
         )
-        
+
         conditions = [
             spread_ratio < 0.15,
             (spread_ratio >= 0.15) & (spread_ratio < 0.30),
-            spread_ratio >= 0.30
+            spread_ratio >= 0.30,
         ]
         choices = ["Low", "Medium", "High"]
         df["risk_level"] = np.select(conditions, choices, default="Medium")
-        
+
         return df

@@ -6,6 +6,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -14,21 +15,20 @@ from demandiq.anomaly.detector import HybridAnomalyDetector
 from demandiq.config import settings
 from demandiq.data.loader import load_and_validate_orders
 from demandiq.data.monitor import check_data_health
+from demandiq.data.promo_calendar import PromoCalendar
 from demandiq.features.engineer import build_features
 from demandiq.models.cross_validate import compute_metrics, compute_rolling_accuracy
-from demandiq.models.explain import get_top_drivers, get_weather_shap_contributions, get_global_shap_summary
+from demandiq.models.explain import (
+    get_global_shap_summary,
+    get_top_drivers,
+    get_weather_shap_contributions,
+)
 from demandiq.models.forecaster import DemandForecaster
 from demandiq.models.model_card import generate_model_report
-from demandiq.reports.anomaly_digest import generate_markdown_digest
-
-import plotly.express as px
-from demandiq.data.promo_calendar import PromoCalendar
-from demandiq.monitoring.drift_detector import detect_performance_drift
 from demandiq.monitoring.scheduler import schedule_retrain
-from demandiq.notifications.email_alert import send_email_alert
-from demandiq.notifications.slack_alert import send_slack_alert
 from demandiq.recommendations.capacity_planner import CapacityPlanner
 from demandiq.registry.model_registry import ModelRegistry
+from demandiq.reports.anomaly_digest import generate_markdown_digest
 
 logger = logging.getLogger(__name__)
 
@@ -261,8 +261,18 @@ def main() -> None:  # pragma: no cover
     # Feature 10: Anomaly Sensitivity Tuner
     st.sidebar.markdown("---")
     st.sidebar.subheader("🎛️ Anomaly Sensitivity")
-    new_z_thresh = st.sidebar.slider("Z-Score Threshold", min_value=1.5, max_value=4.0, value=float(detector.z_threshold), step=0.1)
-    new_strict_mode = st.sidebar.toggle("Strict Mode", value=detector.strict_mode, help="Require both Isolation Forest and Z-Score to agree.")
+    new_z_thresh = st.sidebar.slider(
+        "Z-Score Threshold",
+        min_value=1.5,
+        max_value=4.0,
+        value=float(detector.z_threshold),
+        step=0.1,
+    )
+    new_strict_mode = st.sidebar.toggle(
+        "Strict Mode",
+        value=detector.strict_mode,
+        help="Require both Isolation Forest and Z-Score to agree.",
+    )
     detector.z_threshold = new_z_thresh
     detector.strict_mode = new_strict_mode
 
@@ -277,24 +287,34 @@ def main() -> None:  # pragma: no cover
         p_intensity = st.slider("Intensity", 1.0, 3.0, 1.2, 0.1)
         p_label = st.text_input("Label (e.g., Summer Sale)")
         if st.button("Add Promo"):
-            if p_end >= p_start:
-                pc.add_promo(p_city, p_start, p_end, p_intensity, p_label)
-                pc.save()
-                st.success("Promo added!")
+            import datetime
+
+            if isinstance(p_start, datetime.date) and isinstance(p_end, datetime.date):
+                if p_end >= p_start:
+                    pc.add_promo(p_city, p_start, p_end, p_intensity, p_label)
+                    pc.save()
+                    st.success("Promo added!")
+                else:
+                    st.error("End date must be >= start date.")
             else:
-                st.error("End date must be >= start date.")
+                st.error("Please provide valid start and end dates.")
 
     # Feature 1: Alert Settings
     st.sidebar.markdown("---")
     with st.sidebar.expander("🔔 Alert Settings", expanded=False):
         settings.alert_enabled = st.toggle("Enable Push Alerts", value=settings.alert_enabled)
-        st.text_input("Slack Webhook URL", value=settings.slack_webhook_url if settings.slack_webhook_url else "", type="password", key="slack_url_input")
+        st.text_input(
+            "Slack Webhook URL",
+            value=settings.slack_webhook_url if settings.slack_webhook_url else "",
+            type="password",
+            key="slack_url_input",
+        )
         settings.slack_webhook_url = st.session_state.slack_url_input
 
     # Feature 3: Auto-Retrain Settings
     st.sidebar.markdown("---")
     with st.sidebar.expander("⚙️ Auto-Retrain Settings", expanded=False):
-        drift_thresh = st.slider("Drift Threshold (MAPE %)", 5.0, 15.0, 8.0, 0.5)
+        drift_thresh = st.slider("Drift Threshold (MAPE %)", 5.0, 15.0, 8.0, 0.5)  # noqa: F841
         cron_expr = st.text_input("Cron Schedule", value="0 2 * * 0")
         if st.button("Schedule Retraining"):
             schedule_retrain(cron_expr)
@@ -322,7 +342,14 @@ def main() -> None:  # pragma: no cover
 
     # --- Main Application Tabs ---
     tab_deep_dive, tab_benchmarks, tab_future, tab_capacity, tab_model_card, tab_registry = st.tabs(
-        ["📈 City Deep Dive", "🗺️ City Benchmarks", "📅 Future Forecast", "📦 Capacity Planning", "🏅 Model Report Card", "🔬 Model Registry"]
+        [
+            "📈 City Deep Dive",
+            "🗺️ City Benchmarks",
+            "📅 Future Forecast",
+            "📦 Capacity Planning",
+            "🏅 Model Report Card",
+            "🔬 Model Registry",
+        ]
     )
 
     with tab_deep_dive:
@@ -642,28 +669,32 @@ def main() -> None:  # pragma: no cover
             )
             st.plotly_chart(weather_fig, use_container_width=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        
+
         # --- Section 4.8: Global SHAP Summary ---
         st.markdown("### 🌐 Global Feature Importance")
-        st.markdown("Macro-level view of which features drive the model's predictions overall for this timeframe.")
+        st.markdown(
+            "Macro-level view of which features drive the model's predictions overall for this timeframe."
+        )
         with st.spinner("Computing global feature importance..."):
             try:
-                global_shap = get_global_shap_summary(forecaster, sub_df, city=selected_city, n_features=10)
+                global_shap = get_global_shap_summary(
+                    forecaster, sub_df, city=selected_city, n_features=10
+                )
                 global_fig = px.bar(
-                    global_shap, 
-                    x="mean_abs_shap", 
-                    y="feature", 
+                    global_shap,
+                    x="mean_abs_shap",
+                    y="feature",
                     orientation="h",
                     title="Average Absolute SHAP Impact by Feature",
-                    labels={"mean_abs_shap": "Mean Absolute SHAP Value", "feature": "Feature"}
+                    labels={"mean_abs_shap": "Mean Absolute SHAP Value", "feature": "Feature"},
                 )
                 global_fig.update_layout(
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(15, 23, 42, 0.5)",
                     font=dict(color="#E2E8F0"),
-                    yaxis={'categoryorder':'total ascending'},
+                    yaxis={"categoryorder": "total ascending"},
                     height=350,
-                    margin=dict(l=20, r=20, t=40, b=20)
+                    margin=dict(l=20, r=20, t=40, b=20),
                 )
                 st.plotly_chart(global_fig, use_container_width=True)
             except Exception as e:
@@ -760,26 +791,36 @@ def main() -> None:  # pragma: no cover
         sum_df = pd.DataFrame(summary_rows)
         st.dataframe(sum_df, use_container_width=True, hide_index=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        
+
         st.markdown("#### 🗺️ Geospatial Demand & Anomaly Heat Map")
         city_coords = {
             "New York": {"lat": 40.7128, "lon": -74.0060},
             "Chicago": {"lat": 41.8781, "lon": -87.6298},
             "Los Angeles": {"lat": 34.0522, "lon": -118.2437},
             "Austin": {"lat": 30.2672, "lon": -97.7431},
-            "Miami": {"lat": 25.7617, "lon": -80.1918}
+            "Miami": {"lat": 25.7617, "lon": -80.1918},
         }
         geo_df = sum_df.copy()
         geo_df["lat"] = geo_df["City Market"].map(lambda c: city_coords.get(c, {}).get("lat", 0))
         geo_df["lon"] = geo_df["City Market"].map(lambda c: city_coords.get(c, {}).get("lon", 0))
         geo_df["marker_size"] = geo_df["Avg Daily Orders"] / geo_df["Avg Daily Orders"].max() * 40
-        
+
         geo_fig = px.scatter_geo(
-            geo_df, lat="lat", lon="lon", hover_name="City Market",
-            size="marker_size", color="Ensemble MAPE (%)",
-            hover_data={"lat": False, "lon": False, "Avg Daily Orders": True, "Anomaly Frequency (%)": True},
-            color_continuous_scale="Viridis", projection="albers usa",
-            title="Market Overview: Volume & Accuracy"
+            geo_df,
+            lat="lat",
+            lon="lon",
+            hover_name="City Market",
+            size="marker_size",
+            color="Ensemble MAPE (%)",
+            hover_data={
+                "lat": False,
+                "lon": False,
+                "Avg Daily Orders": True,
+                "Anomaly Frequency (%)": True,
+            },
+            color_continuous_scale="Viridis",
+            projection="albers usa",
+            title="Market Overview: Volume & Accuracy",
         )
         geo_fig.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
@@ -787,7 +828,7 @@ def main() -> None:  # pragma: no cover
             font=dict(color="#E2E8F0"),
             geo=dict(bgcolor="rgba(0,0,0,0)", lakecolor="rgba(15, 23, 42, 0.5)"),
             margin=dict(l=0, r=0, t=40, b=0),
-            height=400
+            height=400,
         )
         st.plotly_chart(geo_fig, use_container_width=True)
         st.markdown("<br>", unsafe_allow_html=True)
@@ -987,19 +1028,31 @@ def main() -> None:  # pragma: no cover
 
     with tab_capacity:
         st.markdown("### 📦 Capacity & Inventory Recommendation Engine")
-        st.markdown("Translate future demand forecasts into actionable inventory and safety stock recommendations.")
-        
-        horizon = st.slider("Planning Horizon (Days)", min_value=7, max_value=90, value=14, step=1, key="cap_horizon")
-        use_weather = st.checkbox("Include Live Weather API Forecasts", value=True, key="cap_weather")
+        st.markdown(
+            "Translate future demand forecasts into actionable inventory and safety stock recommendations."
+        )
+
+        horizon = st.slider(
+            "Planning Horizon (Days)",
+            min_value=7,
+            max_value=90,
+            value=14,
+            step=1,
+            key="cap_horizon",
+        )
+        use_weather = st.checkbox(
+            "Include Live Weather API Forecasts", value=True, key="cap_weather"
+        )
         safety_pct = st.slider("Safety Stock Target (%)", 0.0, 50.0, 10.0, 1.0)
         unit_cost = st.number_input("Estimated Unit Cost ($)", value=10.0, step=1.0)
-        
+
         if st.button("Generate Capacity Plan"):
             with st.spinner("Running forecasting and capacity planning models..."):
                 try:
                     w_df = None
                     if use_weather:
                         from demandiq.data.weather_fetcher import fetch_forecast_weather
+
                         w_dfs = []
                         for c in df["city"].unique():
                             cwd = fetch_forecast_weather(str(c), horizon)
@@ -1007,22 +1060,35 @@ def main() -> None:  # pragma: no cover
                                 w_dfs.append(cwd)
                         if w_dfs:
                             w_df = pd.concat(w_dfs, ignore_index=True)
-                            
+
                     future = forecaster.forecast_future(horizon, df, weather_df=w_df)
                     if not future.empty:
-                        planner = CapacityPlanner(safety_stock_pct=safety_pct, default_unit_cost=unit_cost)
+                        planner = CapacityPlanner(
+                            safety_stock_pct=safety_pct, default_unit_cost=unit_cost
+                        )
                         recs = planner.recommend(future)
-                        
-                        show_cols = ["date", "city", "pred_orders", "pred_p90", "recommended_inventory", "reorder_point", "risk_level", "max_exposed_cost"]
+
+                        show_cols = [
+                            "date",
+                            "city",
+                            "pred_orders",
+                            "pred_p90",
+                            "recommended_inventory",
+                            "reorder_point",
+                            "risk_level",
+                            "max_exposed_cost",
+                        ]
                         disp_df = recs[show_cols].copy()
                         disp_df["date"] = disp_df["date"].dt.strftime("%Y-%m-%d")
                         disp_df["pred_orders"] = disp_df["pred_orders"].round(1)
                         disp_df["pred_p90"] = disp_df["pred_p90"].round(1)
-                        
+
                         st.dataframe(disp_df, use_container_width=True, hide_index=True)
-                        
-                        csv = disp_df.to_csv(index=False).encode('utf-8')
-                        st.download_button("⬇️ Download Capacity Plan (CSV)", csv, "capacity_plan.csv", "text/csv")
+
+                        csv = disp_df.to_csv(index=False).encode("utf-8")
+                        st.download_button(
+                            "⬇️ Download Capacity Plan (CSV)", csv, "capacity_plan.csv", "text/csv"
+                        )
                     else:
                         st.error("Failed to generate future forecast for capacity planning.")
                 except Exception as e:
@@ -1031,10 +1097,10 @@ def main() -> None:  # pragma: no cover
     with tab_registry:
         st.markdown("### 🔬 Model Registry & A/B Testing")
         st.markdown("Compare versions of the forecasting ensemble head-to-head.")
-        
+
         reg = ModelRegistry()
         versions = reg.list_versions()
-        
+
         if not versions:
             st.info("No models registered yet.")
             st.markdown("Register current model:")
@@ -1046,28 +1112,44 @@ def main() -> None:  # pragma: no cover
                 st.rerun()
         else:
             st.dataframe(pd.DataFrame(versions), use_container_width=True)
-            
+
             st.markdown("#### A/B Model Comparison")
             c1, c2 = st.columns(2)
             with c1:
                 tag_a = st.selectbox("Champion Model", [v["tag"] for v in versions], index=0)
             with c2:
-                tag_b = st.selectbox("Challenger Model", [v["tag"] for v in versions], index=min(1, len(versions)-1))
-                
+                tag_b = st.selectbox(
+                    "Challenger Model",
+                    [v["tag"] for v in versions],
+                    index=min(1, len(versions) - 1),
+                )
+
             if st.button("Compare Models"):
                 with st.spinner("Running head-to-head backtest..."):
                     try:
                         comp = reg.compare(tag_a, tag_b, df)
                         st.write(f"**Improvement of {tag_a} over {tag_b}:**")
                         st.json(comp["improvement"])
-                        
+
                         m_a = comp[tag_a]
                         m_b = comp[tag_b]
-                        
-                        comp_df = pd.DataFrame([
-                            {"Model": tag_a, "MAPE": m_a["mape"], "RMSE": m_a["rmse"], "MAE": m_a["mae"]},
-                            {"Model": tag_b, "MAPE": m_b["mape"], "RMSE": m_b["rmse"], "MAE": m_b["mae"]}
-                        ])
+
+                        comp_df = pd.DataFrame(
+                            [
+                                {
+                                    "Model": tag_a,
+                                    "MAPE": m_a["mape"],
+                                    "RMSE": m_a["rmse"],
+                                    "MAE": m_a["mae"],
+                                },
+                                {
+                                    "Model": tag_b,
+                                    "MAPE": m_b["mape"],
+                                    "RMSE": m_b["rmse"],
+                                    "MAE": m_b["mae"],
+                                },
+                            ]
+                        )
                         st.dataframe(comp_df, hide_index=True)
                     except Exception as e:
                         st.error(f"Comparison failed: {e}")

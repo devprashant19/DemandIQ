@@ -1,9 +1,9 @@
 """Slack notification module for anomaly alerts."""
 
-import logging
-import urllib.request
-import urllib.error
 import json
+import logging
+import urllib.error
+import urllib.request
 
 from demandiq.config import settings
 
@@ -28,15 +28,17 @@ def send_slack_alert(city: str, markdown_digest: str) -> bool:
         logger.warning("Slack webhook URL is not configured. Skipping Slack alert.")
         return False
 
-    payload = {
-        "text": f"*DemandIQ Anomaly Alert: {city}*\n\n{markdown_digest}"
-    }
+    payload = {"text": f"*DemandIQ Anomaly Alert: {city}*\n\n{markdown_digest}"}
 
     try:
         req = urllib.request.Request(
-            settings.slack_webhook_url.get_secret_value() if hasattr(settings.slack_webhook_url, 'get_secret_value') else settings.slack_webhook_url,
+            (
+                settings.slack_webhook_url.get_secret_value()
+                if hasattr(settings.slack_webhook_url, "get_secret_value")
+                else settings.slack_webhook_url
+            ),
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req) as response:
             if response.status == 200:

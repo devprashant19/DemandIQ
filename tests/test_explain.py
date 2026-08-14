@@ -18,7 +18,7 @@ def fitted_model_and_data(sample_orders_df: pd.DataFrame) -> tuple[DemandForecas
 
 
 def test_shap_expected_value_sum_consistency(
-    fitted_model_and_data: tuple[DemandForecaster, pd.DataFrame]
+    fitted_model_and_data: tuple[DemandForecaster, pd.DataFrame],
 ) -> None:
     """Assert standard SHAP mathematical sanity check: expected_value + sum(shap_values) approximately equals model prediction."""
     model, fe_df = fitted_model_and_data
@@ -35,7 +35,7 @@ def test_shap_expected_value_sum_consistency(
 
 
 def test_get_top_drivers_single_row(
-    fitted_model_and_data: tuple[DemandForecaster, pd.DataFrame]
+    fitted_model_and_data: tuple[DemandForecaster, pd.DataFrame],
 ) -> None:
     """Verify get_top_drivers on single row Series returns exactly N sorted items by magnitude."""
     model, fe_df = fitted_model_and_data
@@ -60,7 +60,7 @@ def test_get_top_drivers_single_row(
 
 
 def test_get_top_drivers_batch(
-    fitted_model_and_data: tuple[DemandForecaster, pd.DataFrame]
+    fitted_model_and_data: tuple[DemandForecaster, pd.DataFrame],
 ) -> None:
     """Verify get_top_drivers on multi-row batch returns a list of sorted feature lists."""
     model, fe_df = fitted_model_and_data

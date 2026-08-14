@@ -1,6 +1,7 @@
 """APScheduler configuration for automated pipeline retraining."""
 
 import logging
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 # Global scheduler instance
 _scheduler = BackgroundScheduler()
 
+
 def _retrain_job() -> None:
     """Wrapper function to execute the full pipeline during scheduled runs."""
     logger.info("Executing scheduled model retraining...")
@@ -20,9 +22,10 @@ def _retrain_job() -> None:
     except Exception as e:
         logger.error("Scheduled model retraining failed: %s", e)
 
+
 def schedule_retrain(cron_expr: str = "0 2 * * 0") -> None:
     """Schedule the model to retrain automatically based on a cron expression.
-    
+
     Default is every Sunday at 2 AM.
 
     Args:
@@ -35,14 +38,11 @@ def schedule_retrain(cron_expr: str = "0 2 * * 0") -> None:
     # Clear existing jobs
     for job in _scheduler.get_jobs():
         job.remove()
-        
+
     try:
         trigger = CronTrigger.from_crontab(cron_expr)
         _scheduler.add_job(
-            _retrain_job,
-            trigger=trigger,
-            id="retrain_pipeline",
-            replace_existing=True
+            _retrain_job, trigger=trigger, id="retrain_pipeline", replace_existing=True
         )
         logger.info("Model retraining scheduled with cron: '%s'", cron_expr)
     except ValueError as e:

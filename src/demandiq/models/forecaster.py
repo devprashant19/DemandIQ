@@ -290,7 +290,7 @@ class DemandForecaster:
             "p90": clean_arr(res_p90),
         }
 
-    def forecast_future(
+    def forecast_future(  # noqa: C901
         self, horizon_days: int, last_known_df: pd.DataFrame, weather_df: pd.DataFrame | None = None
     ) -> pd.DataFrame:
         """Generate future demand forecast iteratively rolling forward day by day.
@@ -331,7 +331,7 @@ class DemandForecaster:
                 ]
                 if col in city_hist.columns
             ]
-            
+
             # Pre-filter weather data for this city if available
             city_weather = None
             if weather_df is not None and not weather_df.empty:

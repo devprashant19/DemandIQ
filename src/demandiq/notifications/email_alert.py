@@ -37,9 +37,16 @@ def send_email_alert(city: str, markdown_digest: str) -> bool:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
             if settings.smtp_user and settings.smtp_password:
                 server.starttls()
-                server.login(settings.smtp_user, settings.smtp_password.get_secret_value() if hasattr(settings.smtp_password, 'get_secret_value') else settings.smtp_password)
+                server.login(
+                    settings.smtp_user,
+                    (
+                        settings.smtp_password.get_secret_value()
+                        if hasattr(settings.smtp_password, "get_secret_value")
+                        else settings.smtp_password
+                    ),
+                )
             server.send_message(msg)
-        
+
         logger.info("Successfully sent anomaly email alert to %s", settings.smtp_to)
         return True
     except Exception as e:

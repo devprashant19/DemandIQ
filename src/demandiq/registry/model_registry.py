@@ -2,7 +2,6 @@
 
 import json
 import logging
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,7 +24,9 @@ class ModelRegistry:
         Args:
             registry_dir: Path to the registry root directory.
         """
-        self.registry_dir = Path(registry_dir) if registry_dir is not None else settings.model_registry_dir
+        self.registry_dir = (
+            Path(registry_dir) if registry_dir is not None else settings.model_registry_dir
+        )
         self.registry_dir.mkdir(parents=True, exist_ok=True)
         self.manifest_path = self.registry_dir / "manifest.json"
         self._manifest = self._load_manifest()
@@ -34,7 +35,7 @@ class ModelRegistry:
         if not self.manifest_path.exists():
             return {"versions": {}}
         try:
-            with open(self.manifest_path, "r", encoding="utf-8") as f:
+            with open(self.manifest_path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
             logger.error("Failed to load registry manifest: %s", e)
@@ -57,15 +58,15 @@ class ModelRegistry:
 
         version_dir = self.registry_dir / version_tag
         version_dir.mkdir(parents=True, exist_ok=True)
-        
+
         model_path = version_dir / "forecaster.pkl"
         model.save(path=model_path)
-        
+
         self._manifest["versions"][version_tag] = {
             "created_at": datetime.now().isoformat(),
             "description": description,
             "lgb_weight": getattr(model, "lgb_weight", None),
-            "prophet_weight": getattr(model, "prophet_weight", None)
+            "prophet_weight": getattr(model, "prophet_weight", None),
         }
         self._save_manifest()
         logger.info("Registered model version '%s' successfully.", version_tag)
@@ -81,7 +82,7 @@ class ModelRegistry:
         """
         if version_tag not in self._manifest["versions"]:
             raise ValueError(f"Version '{version_tag}' not found in registry.")
-            
+
         model_path = self.registry_dir / version_tag / "forecaster.pkl"
         return DemandForecaster.load(model_path)
 
@@ -114,17 +115,17 @@ class ModelRegistry:
 
         preds_a = model_a.predict(df)
         preds_b = model_b.predict(df)
-        
+
         actuals = df["orders"].to_numpy()
-        
+
         metrics_a = compute_metrics(actuals, preds_a)
         metrics_b = compute_metrics(actuals, preds_b)
-        
+
         return {
             tag_a: metrics_a,
             tag_b: metrics_b,
             "improvement": {
                 "mape_diff": metrics_a["mape"] - metrics_b["mape"],
-                "rmse_diff": metrics_a["rmse"] - metrics_b["rmse"]
-            }
+                "rmse_diff": metrics_a["rmse"] - metrics_b["rmse"],
+            },
         }

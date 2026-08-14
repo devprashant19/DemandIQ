@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +12,12 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CALENDAR_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / "data" / "promos" / "calendar.json"
+_DEFAULT_CALENDAR_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent.parent
+    / "data"
+    / "promos"
+    / "calendar.json"
+)
 
 
 class PromoCalendar:
@@ -192,7 +197,7 @@ class PromoCalendar:
         if not load_p.exists():
             logger.info("No existing calendar found at %s. Returning empty calendar.", load_p)
             return cls()
-        with open(load_p, "r", encoding="utf-8") as f:
+        with open(load_p, encoding="utf-8") as f:
             entries = json.load(f)
         cal = cls()
         cal._entries = entries
@@ -225,10 +230,17 @@ class PromoCalendar:
         promo_df["date"] = pd.to_datetime(promo_df["date"])
         out["date"] = pd.to_datetime(out["date"])
 
-        merged = out.merge(promo_df[["date", "city", "promo_active", "promo_intensity"]], on=["date", "city"], how="left", suffixes=("", "_cal"))
+        merged = out.merge(
+            promo_df[["date", "city", "promo_active", "promo_intensity"]],
+            on=["date", "city"],
+            how="left",
+            suffixes=("", "_cal"),
+        )
         if "promo_active_cal" in merged.columns:
             cal_mask = merged["promo_active_cal"].notna()
-            merged.loc[cal_mask, "promo_active"] = merged.loc[cal_mask, "promo_active_cal"].astype(int)
+            merged.loc[cal_mask, "promo_active"] = merged.loc[cal_mask, "promo_active_cal"].astype(
+                int
+            )
             merged = merged.drop(columns=["promo_active_cal"])
         if "promo_intensity" in merged.columns:
             merged["promo_intensity"] = merged["promo_intensity"].fillna(0.0)
@@ -236,7 +248,9 @@ class PromoCalendar:
         return merged.reset_index(drop=True)
 
     def __len__(self) -> int:
+        """Return the number of promos."""
         return len(self._entries)
 
     def __repr__(self) -> str:
+        """Return string representation."""
         return f"PromoCalendar(entries={len(self._entries)})"
